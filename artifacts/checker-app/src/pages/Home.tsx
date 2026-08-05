@@ -290,28 +290,12 @@ export default function Home() {
 
         {/* Results Table */}
         <div className="bg-card border border-border rounded-xl flex-1 flex flex-col shadow-sm overflow-hidden relative">
-          {/* Table header + Export buttons in same row */}
-          <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center justify-between gap-2 shrink-0">
-            <div className="grid grid-cols-[3rem_5.5rem_1fr_4.5rem_1fr] gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex-1">
-              <div>#</div>
-              <div>STATUS</div>
-              <div>INPUT / EMAIL</div>
-              <div>PLAN</div>
-              <div>DETAIL / ERROR</div>
-            </div>
-            {/* Export buttons always visible */}
-            <div className="flex items-center gap-1.5 shrink-0 pl-2 border-l border-border/50">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mr-1 hidden sm:block">Export</span>
-              <button onClick={() => exportData('live')} title="Export LIVE accounts" className="px-2.5 py-1 bg-live/10 text-live text-[10px] font-bold uppercase tracking-wider rounded hover:bg-live/20 transition-colors flex items-center gap-1 border border-live/20">
-                <Download className="w-3 h-3" /> LIVE
-              </button>
-              <button onClick={() => exportData('die')} title="Export DIE/locked/deactivated" className="px-2.5 py-1 bg-destructive/10 text-destructive text-[10px] font-bold uppercase tracking-wider rounded hover:bg-destructive/20 transition-colors flex items-center gap-1 border border-destructive/20">
-                <Download className="w-3 h-3" /> DIE
-              </button>
-              <button onClick={() => exportData('all')} title="Export all results" className="px-2.5 py-1 bg-muted text-foreground text-[10px] font-bold uppercase tracking-wider rounded hover:bg-muted/80 transition-colors flex items-center gap-1 border border-border">
-                <Download className="w-3 h-3" /> ALL
-              </button>
-            </div>
+          <div className="px-5 py-3 border-b border-border bg-muted/30 grid grid-cols-[3rem_5.5rem_1fr_4.5rem_1fr] gap-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest shrink-0">
+            <div>#</div>
+            <div>STATUS</div>
+            <div>INPUT / EMAIL</div>
+            <div>PLAN</div>
+            <div>DETAIL / ERROR</div>
           </div>
           
           <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
@@ -341,6 +325,22 @@ export default function Home() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Export Row */}
+        <div className="bg-card border border-border p-3 px-4 rounded-xl flex items-center justify-between shrink-0 shadow-sm">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Export Results</span>
+          <div className="flex gap-2">
+            <button onClick={() => exportData('live')} className="px-3 py-1.5 bg-live/10 text-live text-xs font-bold uppercase tracking-wider rounded-md hover:bg-live/20 transition-colors flex items-center gap-1.5 border border-live/10">
+              <Download className="w-3.5 h-3.5" /> LIVE
+            </button>
+            <button onClick={() => exportData('die')} className="px-3 py-1.5 bg-destructive/10 text-destructive text-xs font-bold uppercase tracking-wider rounded-md hover:bg-destructive/20 transition-colors flex items-center gap-1.5 border border-destructive/10">
+              <Download className="w-3.5 h-3.5" /> DIE
+            </button>
+            <button onClick={() => exportData('all')} className="px-3 py-1.5 bg-muted text-foreground text-xs font-bold uppercase tracking-wider rounded-md hover:bg-muted/80 transition-colors flex items-center gap-1.5 border border-border">
+              <Download className="w-3.5 h-3.5" /> ALL
+            </button>
           </div>
         </div>
         
