@@ -266,6 +266,18 @@ export const ListUsersResponse = zod.object({
 
 
 /**
+ * @summary Reset a user's free trial count to 0
+ */
+export const ResetUserTrialParams = zod.object({
+  "telegramId": zod.coerce.string()
+})
+
+export const ResetUserTrialResponse = zod.object({
+  "ok": zod.boolean().optional()
+})
+
+
+/**
  * @summary List usage logs (paginated)
  */
 export const ListUsageLogsQueryParams = zod.object({

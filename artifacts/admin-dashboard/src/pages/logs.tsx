@@ -37,14 +37,14 @@ export default function Logs() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">System Logs</h1>
-        <p className="text-muted-foreground mt-1">Audit trails and usage telemetry.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Nhật ký</h1>
+        <p className="text-muted-foreground mt-1">Lịch sử truy cập và giám sát hệ thống.</p>
       </div>
 
       <Tabs defaultValue="usage" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="usage">Usage Logs</TabsTrigger>
-          <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+          <TabsTrigger value="usage">Nhật ký sử dụng</TabsTrigger>
+          <TabsTrigger value="audit">Nhật ký quản trị</TabsTrigger>
         </TabsList>
 
         <TabsContent value="usage">
@@ -54,19 +54,19 @@ export default function Logs() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Action</TableHead>
+                      <TableHead>Thời gian</TableHead>
+                      <TableHead>Thao tác</TableHead>
                       <TableHead>Telegram ID</TableHead>
                       <TableHead>Key ID</TableHead>
-                      <TableHead>IP Address</TableHead>
-                      <TableHead>Error</TableHead>
+                      <TableHead>Địa chỉ IP</TableHead>
+                      <TableHead>Lỗi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isUsageLoading ? (
-                      <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Loading...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
                     ) : usageData?.logs.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No usage logs found.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Không có dữ liệu</TableCell></TableRow>
                     ) : (
                       usageData?.logs.map((log) => (
                         <TableRow key={log.id}>
@@ -88,11 +88,11 @@ export default function Logs() {
               {usageData && usageData.total > limit && (
                 <div className="flex items-center justify-between p-4 border-t border-border">
                   <div className="text-sm text-muted-foreground">
-                    Showing {(usagePage - 1) * limit + 1} to {Math.min(usagePage * limit, usageData.total)} of {usageData.total} entries
+                    Hiển thị {(usagePage - 1) * limit + 1} đến {Math.min(usagePage * limit, usageData.total)} của {usageData.total} mục
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setUsagePage(p => Math.max(1, p - 1))} disabled={usagePage === 1}>Previous</Button>
-                    <Button variant="outline" size="sm" onClick={() => setUsagePage(p => p + 1)} disabled={usagePage * limit >= usageData.total}>Next</Button>
+                    <Button variant="outline" size="sm" onClick={() => setUsagePage(p => Math.max(1, p - 1))} disabled={usagePage === 1}>Trước</Button>
+                    <Button variant="outline" size="sm" onClick={() => setUsagePage(p => p + 1)} disabled={usagePage * limit >= usageData.total}>Tiếp</Button>
                   </div>
                 </div>
               )}
@@ -107,23 +107,23 @@ export default function Logs() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Time</TableHead>
+                      <TableHead>Thời gian</TableHead>
                       <TableHead>Admin ID</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Target</TableHead>
-                      <TableHead>IP Address</TableHead>
+                      <TableHead>Thao tác</TableHead>
+                      <TableHead>Đối tượng</TableHead>
+                      <TableHead>Địa chỉ IP</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isAuditLoading ? (
-                      <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Loading...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
                     ) : auditData?.logs.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">No audit logs found.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Không có dữ liệu</TableCell></TableRow>
                     ) : (
                       auditData?.logs.map((log) => (
                         <TableRow key={log.id}>
                           <TableCell className="text-sm whitespace-nowrap">{format(new Date(log.createdAt), "PPp")}</TableCell>
-                          <TableCell className="font-mono text-sm">{log.adminId || "System"}</TableCell>
+                          <TableCell className="font-mono text-sm">{log.adminId || "Hệ thống"}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="font-mono">{log.action}</Badge>
                           </TableCell>
@@ -139,11 +139,11 @@ export default function Logs() {
               {auditData && auditData.total > limit && (
                 <div className="flex items-center justify-between p-4 border-t border-border">
                   <div className="text-sm text-muted-foreground">
-                    Showing {(auditPage - 1) * limit + 1} to {Math.min(auditPage * limit, auditData.total)} of {auditData.total} entries
+                    Hiển thị {(auditPage - 1) * limit + 1} đến {Math.min(auditPage * limit, auditData.total)} của {auditData.total} mục
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setAuditPage(p => Math.max(1, p - 1))} disabled={auditPage === 1}>Previous</Button>
-                    <Button variant="outline" size="sm" onClick={() => setAuditPage(p => p + 1)} disabled={auditPage * limit >= auditData.total}>Next</Button>
+                    <Button variant="outline" size="sm" onClick={() => setAuditPage(p => Math.max(1, p - 1))} disabled={auditPage === 1}>Trước</Button>
+                    <Button variant="outline" size="sm" onClick={() => setAuditPage(p => p + 1)} disabled={auditPage * limit >= auditData.total}>Tiếp</Button>
                   </div>
                 </div>
               )}

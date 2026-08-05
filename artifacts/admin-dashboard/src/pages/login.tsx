@@ -18,8 +18,8 @@ import { Key } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
+  username: z.string().min(1, "Vui lòng nhập tên đăng nhập"),
+  password: z.string().min(1, "Vui lòng nhập mật khẩu"),
 });
 
 export default function Login() {
@@ -41,15 +41,15 @@ export default function Login() {
       {
         onSuccess: () => {
           toast({
-            title: "Access Granted",
-            description: "Welcome to the control plane.",
+            title: "Đăng nhập thành công",
+            description: "Chào mừng bạn đến với hệ thống.",
           });
           setLocation("/");
         },
         onError: () => {
           toast({
-            title: "Access Denied",
-            description: "Invalid credentials.",
+            title: "Đăng nhập thất bại",
+            description: "Sai tên đăng nhập hoặc mật khẩu.",
             variant: "destructive",
           });
         },
@@ -65,10 +65,10 @@ export default function Login() {
             <Key className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Operator Access
+            Đăng nhập quản trị
           </h1>
           <p className="text-sm text-muted-foreground">
-            Authenticate to enter the control plane
+            Xác thực để truy cập hệ thống
           </p>
         </div>
 
@@ -80,7 +80,7 @@ export default function Login() {
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Identifier</FormLabel>
+                    <FormLabel>Tên đăng nhập</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="admin"
@@ -98,7 +98,7 @@ export default function Login() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Passphrase</FormLabel>
+                    <FormLabel>Mật khẩu</FormLabel>
                     <FormControl>
                       <Input
                         type="password"
@@ -116,7 +116,7 @@ export default function Login() {
                 className="w-full"
                 disabled={loginMutation.isPending}
               >
-                {loginMutation.isPending ? "Authenticating..." : "Initialize Session"}
+                {loginMutation.isPending ? "Đang tải..." : "Đăng nhập"}
               </Button>
             </form>
           </Form>

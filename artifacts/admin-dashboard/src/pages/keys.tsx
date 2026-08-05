@@ -101,11 +101,11 @@ export default function Keys() {
         setCreatedKeys(res.keys);
         setIsCreateOpen(false);
         queryClient.invalidateQueries({ queryKey: getListKeysQueryKey() });
-        toast({ title: "Success", description: `Created ${res.keys.length} key(s).` });
+        toast({ title: "Thành công", description: `Đã tạo ${res.keys.length} key.` });
         form.reset();
       },
       onError: () => {
-        toast({ title: "Error", description: "Failed to create keys.", variant: "destructive" });
+        toast({ title: "Lỗi", description: "Lỗi khi tạo key.", variant: "destructive" });
       }
     });
   };
@@ -113,22 +113,22 @@ export default function Keys() {
   const handleAction = (id: number, action: "revoke" | "lock" | "unlock" | "extend") => {
     let extraMinutes = undefined;
     if (action === "extend") {
-      const days = window.prompt("How many days to extend?");
+      const days = window.prompt("Gia hạn thêm bao nhiêu ngày?");
       if (!days || isNaN(Number(days))) return;
       extraMinutes = Number(days) * 24 * 60;
     }
 
-    if (action === "revoke" && !window.confirm("Are you sure you want to revoke this key? This is irreversible.")) {
+    if (action === "revoke" && !window.confirm("Bạn có chắc chắn muốn thu hồi key này? Hành động này không thể hoàn tác.")) {
       return;
     }
 
     updateMutation.mutate({ id, data: { action, extraMinutes } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListKeysQueryKey() });
-        toast({ title: "Success", description: `Key ${action}d successfully.` });
+        toast({ title: "Thành công", description: `Thao tác thành công.` });
       },
       onError: () => {
-        toast({ title: "Error", description: `Failed to ${action} key.`, variant: "destructive" });
+        toast({ title: "Lỗi", description: `Lỗi khi thực hiện thao tác.`, variant: "destructive" });
       }
     });
   };
@@ -139,29 +139,29 @@ export default function Keys() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    toast({ title: "Copied", description: "Copied to clipboard." });
+    toast({ title: "Đã copy", description: "Đã copy vào clipboard." });
   };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">License Keys</h1>
-          <p className="text-muted-foreground mt-1">Manage and provision access keys.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Quản lý Key</h1>
+          <p className="text-muted-foreground mt-1">Quản lý và cấp phát Key truy cập.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleExport}>
-            <Download className="mr-2 h-4 w-4" /> Export CSV
+            <Download className="mr-2 h-4 w-4" /> Xuất CSV
           </Button>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="mr-2 h-4 w-4" /> New Keys
+                <Plus className="mr-2 h-4 w-4" /> Tạo mới
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
-                <DialogTitle>Generate License Keys</DialogTitle>
+                <DialogTitle>Tạo hàng loạt</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmitCreate)} className="space-y-4">
@@ -171,7 +171,7 @@ export default function Keys() {
                       name="count"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Count</FormLabel>
+                          <FormLabel>Số lượng</FormLabel>
                           <FormControl>
                             <Input type="number" min={1} max={100} {...field} />
                           </FormControl>
@@ -184,7 +184,7 @@ export default function Keys() {
                       name="maxConcurrent"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Max Concurrent Devices</FormLabel>
+                          <FormLabel>Tối đa đồng thời</FormLabel>
                           <FormControl>
                             <Input type="number" min={1} {...field} />
                           </FormControl>
@@ -200,7 +200,7 @@ export default function Keys() {
                       name="durationMinutes"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Duration (Minutes)</FormLabel>
+                          <FormLabel>Thời hạn (Phút)</FormLabel>
                           <FormControl>
                             <Input 
                               type="number" 
@@ -224,7 +224,7 @@ export default function Keys() {
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>
-                          <FormLabel className="font-normal">Never Expires</FormLabel>
+                          <FormLabel className="font-normal">Không hết hạn</FormLabel>
                         </FormItem>
                       )}
                     />
@@ -236,9 +236,9 @@ export default function Keys() {
                       name="maxTotalUses"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Max Total Uses</FormLabel>
+                          <FormLabel>Tổng lượt tối đa</FormLabel>
                           <FormControl>
-                            <Input type="number" placeholder="Unlimited" {...field} value={field.value || ""} />
+                            <Input type="number" placeholder="Không giới hạn" {...field} value={field.value || ""} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -249,9 +249,9 @@ export default function Keys() {
                       name="dailyLimit"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Daily Limit</FormLabel>
+                          <FormLabel>Giới hạn/ngày</FormLabel>
                           <FormControl>
-                            <Input type="number" placeholder="Unlimited" {...field} value={field.value || ""} />
+                            <Input type="number" placeholder="Không giới hạn" {...field} value={field.value || ""} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -264,9 +264,9 @@ export default function Keys() {
                     name="note"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Note</FormLabel>
+                        <FormLabel>Ghi chú</FormLabel>
                         <FormControl>
-                          <Input placeholder="Optional reference note" {...field} value={field.value || ""} />
+                          <Input placeholder="Ghi chú tham khảo (tùy chọn)" {...field} value={field.value || ""} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -275,7 +275,7 @@ export default function Keys() {
 
                   <DialogFooter>
                     <Button type="submit" disabled={createMutation.isPending}>
-                      {createMutation.isPending ? "Generating..." : "Generate"}
+                      {createMutation.isPending ? "Đang tạo..." : "Tạo mới"}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -291,7 +291,7 @@ export default function Keys() {
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search keys..."
+                placeholder="Tìm kiếm key..."
                 className="pl-9 bg-background"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -299,14 +299,14 @@ export default function Keys() {
             </div>
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="w-full sm:w-[180px] bg-background">
-                <SelectValue placeholder="Filter by status" />
+                <SelectValue placeholder="Lọc theo trạng thái" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="locked">Locked</SelectItem>
-                <SelectItem value="expired">Expired</SelectItem>
-                <SelectItem value="revoked">Revoked</SelectItem>
+                <SelectItem value="all">Tất cả</SelectItem>
+                <SelectItem value="active">Hoạt động</SelectItem>
+                <SelectItem value="locked">Đã khóa</SelectItem>
+                <SelectItem value="expired">Hết hạn</SelectItem>
+                <SelectItem value="revoked">Đã thu hồi</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -316,21 +316,21 @@ export default function Keys() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Key</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Usage</TableHead>
-                  <TableHead>Concurrent</TableHead>
-                  <TableHead>Expires</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Sử dụng</TableHead>
+                  <TableHead>Đồng thời</TableHead>
+                  <TableHead>Hết hạn</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Loading...</TableCell>
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Đang tải...</TableCell>
                   </TableRow>
                 ) : data?.keys.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No keys found.</TableCell>
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Không có dữ liệu</TableCell>
                   </TableRow>
                 ) : (
                   data?.keys.map((key) => (
@@ -359,13 +359,15 @@ export default function Keys() {
                             key.status === "revoked" ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : ""
                           }
                         >
-                          {key.status.toUpperCase()}
+                          {key.status === "active" ? "HOẠT ĐỘNG" :
+                           key.status === "locked" ? "ĐÃ KHÓA" :
+                           key.status === "expired" ? "HẾT HẠN" : "ĐÃ THU HỒI"}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <div>Total: {key.totalUses} {key.maxTotalUses ? `/ ${key.maxTotalUses}` : ''}</div>
-                          <div>Daily: {key.dailyUses} {key.dailyLimit ? `/ ${key.dailyLimit}` : ''}</div>
+                          <div>Tổng: {key.totalUses} {key.maxTotalUses ? `/ ${key.maxTotalUses}` : ''}</div>
+                          <div>Hàng ngày: {key.dailyUses} {key.dailyLimit ? `/ ${key.dailyLimit}` : ''}</div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -374,7 +376,7 @@ export default function Keys() {
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {key.expiresAt ? format(new Date(key.expiresAt), "PPp") : "Never"}
+                        {key.expiresAt ? format(new Date(key.expiresAt), "PPp") : "Không bao giờ"}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -386,22 +388,22 @@ export default function Keys() {
                           <DropdownMenuContent align="end">
                             {key.status === "active" && (
                               <DropdownMenuItem onClick={() => handleAction(key.id, "lock")}>
-                                <ShieldAlert className="mr-2 h-4 w-4" /> Lock
+                                <ShieldAlert className="mr-2 h-4 w-4" /> Khóa
                               </DropdownMenuItem>
                             )}
                             {key.status === "locked" && (
                               <DropdownMenuItem onClick={() => handleAction(key.id, "unlock")}>
-                                <CheckCircle2 className="mr-2 h-4 w-4" /> Unlock
+                                <CheckCircle2 className="mr-2 h-4 w-4" /> Mở khóa
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem onClick={() => handleAction(key.id, "extend")}>
-                              <KeyIcon className="mr-2 h-4 w-4" /> Extend Expiry
+                              <KeyIcon className="mr-2 h-4 w-4" /> Gia hạn
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               className="text-destructive focus:bg-destructive focus:text-destructive-foreground"
                               onClick={() => handleAction(key.id, "revoke")}
                             >
-                              <ShieldOff className="mr-2 h-4 w-4" /> Revoke
+                              <ShieldOff className="mr-2 h-4 w-4" /> Thu hồi
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -416,7 +418,7 @@ export default function Keys() {
           {data && data.total > limit && (
             <div className="flex items-center justify-between p-4 border-t border-border">
               <div className="text-sm text-muted-foreground">
-                Showing {(page - 1) * limit + 1} to {Math.min(page * limit, data.total)} of {data.total} keys
+                Hiển thị {(page - 1) * limit + 1} đến {Math.min(page * limit, data.total)} của {data.total} key
               </div>
               <div className="flex gap-2">
                 <Button 
@@ -425,7 +427,7 @@ export default function Keys() {
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
                 >
-                  Previous
+                  Trước
                 </Button>
                 <Button 
                   variant="outline" 
@@ -433,7 +435,7 @@ export default function Keys() {
                   onClick={() => setPage(p => p + 1)}
                   disabled={page * limit >= data.total}
                 >
-                  Next
+                  Tiếp
                 </Button>
               </div>
             </div>
@@ -444,7 +446,7 @@ export default function Keys() {
       <Dialog open={!!createdKeys} onOpenChange={(o) => !o && setCreatedKeys(null)}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Keys Generated</DialogTitle>
+            <DialogTitle>Key đã tạo</DialogTitle>
           </DialogHeader>
           <div className="bg-muted p-4 rounded-md font-mono text-sm max-h-[300px] overflow-y-auto whitespace-pre-wrap select-all">
             {createdKeys?.map(k => k.rawKey).join('\n')}
@@ -455,9 +457,9 @@ export default function Keys() {
                 copyToClipboard(createdKeys.map(k => k.rawKey).join('\n'));
               }
             }}>
-              <Copy className="mr-2 h-4 w-4" /> Copy All
+              <Copy className="mr-2 h-4 w-4" /> Copy tất cả
             </Button>
-            <Button variant="secondary" onClick={() => setCreatedKeys(null)}>Close</Button>
+            <Button variant="secondary" onClick={() => setCreatedKeys(null)}>Đóng</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

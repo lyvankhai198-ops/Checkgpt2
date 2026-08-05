@@ -16,7 +16,7 @@ import {
 import { adminAuthMiddleware, signAdminToken } from "../middlewares/adminAuth.js";
 import {
   createKeys, revokeKey, lockKey, unlockKey, extendKey,
-  setKeyExpiry, logAudit, getDashboardStats,
+  setKeyExpiry, logAudit, getDashboardStats, resetUserTrial,
 } from "../lib/keyService.js";
 import { logger } from "../lib/logger.js";
 
@@ -223,6 +223,19 @@ router.get("/admin/keys/export/csv", adminAuthMiddleware, async (_req, res): Pro
 });
 
 // ─── Users ────────────────────────────────────────────────────────────────────
+
+router.post("/admin/users/:telegramId/reset-trial", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const { telegramId } = req.params;
+  await resetUserTrial(telegramId);
+  await logAudit({
+    adminId: req.admin!.adminId,
+    action: "reset_trial",
+    targetType: "user",
+    targetId: telegramId,
+    ipAddress: req.ip,
+  });
+  res.json({ ok: true });
+});
 
 router.get("/admin/users", adminAuthMiddleware, async (req, res): Promise<void> => {
   const page = Math.max(1, Number(req.query.page) || 1);

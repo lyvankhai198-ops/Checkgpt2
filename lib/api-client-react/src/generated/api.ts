@@ -38,6 +38,7 @@ import type {
   ListUsageLogsParams,
   ListUsersParams,
   OkResult,
+  ResetUserTrial200,
   SettingsEnvelope,
   SettingsInput,
   UsageLogPage,
@@ -1121,6 +1122,77 @@ export function useListUsers<TData = Awaited<ReturnType<typeof listUsers>>, TErr
 
 
 
+
+export const getResetUserTrialUrl = (telegramId: string,) => {
+
+
+
+
+  return `/api/admin/users/${telegramId}/reset-trial`
+}
+
+/**
+ * @summary Reset a user's free trial count to 0
+ */
+export const resetUserTrial = async (telegramId: string, options?: Parameters<typeof customFetch>[1]): Promise<ResetUserTrial200> => {
+
+  return customFetch<ResetUserTrial200>(getResetUserTrialUrl(telegramId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResetUserTrialMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetUserTrial>>, TError,{telegramId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetUserTrial>>, TError,{telegramId: string}, TContext> => {
+
+const mutationKey = ['resetUserTrial'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetUserTrial>>, {telegramId: string}> = (props) => {
+          const {telegramId} = props ?? {};
+
+          return  resetUserTrial(telegramId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetUserTrialMutationResult = NonNullable<Awaited<ReturnType<typeof resetUserTrial>>>
+
+    export type ResetUserTrialMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reset a user's free trial count to 0
+ */
+export const useResetUserTrial = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetUserTrial>>, TError,{telegramId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetUserTrial>>,
+        TError,
+        {telegramId: string},
+        TContext
+      > => {
+      return useMutation(getResetUserTrialMutationOptions(options));
+    }
 
 export const getListUsageLogsUrl = (params?: ListUsageLogsParams,) => {
   const normalizedParams = new URLSearchParams();

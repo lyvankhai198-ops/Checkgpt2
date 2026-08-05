@@ -267,6 +267,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserPage"
 
+  /admin/users/{telegramId}/reset-trial:
+    post:
+      operationId: resetUserTrial
+      tags: [admin]
+      summary: Reset a user's free trial count to 0
+      parameters:
+        - name: telegramId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Trial reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
   # ── Logs ──────────────────────────────────────────────────────────────────────
 
   /admin/logs/usage:

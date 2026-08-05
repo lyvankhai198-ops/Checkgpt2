@@ -67,10 +67,10 @@ export default function Settings() {
       { data: values },
       {
         onSuccess: () => {
-          toast({ title: "Success", description: "System settings updated." });
+          toast({ title: "Thành công", description: "Đã cập nhật cấu hình hệ thống." });
         },
         onError: () => {
-          toast({ title: "Error", description: "Failed to update settings.", variant: "destructive" });
+          toast({ title: "Lỗi", description: "Lỗi khi cập nhật cấu hình.", variant: "destructive" });
         },
       }
     );
@@ -83,16 +83,16 @@ export default function Settings() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">System Settings</h1>
-        <p className="text-muted-foreground mt-1">Configure global parameters and defaults.</p>
+        <h1 className="text-3xl font-bold tracking-tight">Cài đặt hệ thống</h1>
+        <p className="text-muted-foreground mt-1">Cấu hình các tham số hệ thống và mặc định.</p>
       </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Telegram Bot Configuration</CardTitle>
-              <CardDescription>Connection settings for the Telegram bot interface.</CardDescription>
+              <CardTitle>Cấu hình Telegram Bot</CardTitle>
+              <CardDescription>Cấu hình kết nối cho giao diện bot Telegram.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <FormField
@@ -100,7 +100,7 @@ export default function Settings() {
                 name="telegramBotToken"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Bot Token</FormLabel>
+                    <FormLabel>Token Bot</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" className="font-mono bg-background" {...field} />
                     </FormControl>
@@ -113,9 +113,9 @@ export default function Settings() {
                 name="welcomeMessage"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Welcome Message</FormLabel>
+                    <FormLabel>Tin nhắn chào mừng</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Message sent to new users..." className="bg-background min-h-[100px]" {...field} />
+                      <Textarea placeholder="Tin nhắn gửi cho người dùng mới..." className="bg-background min-h-[100px]" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -126,8 +126,8 @@ export default function Settings() {
 
           <Card>
             <CardHeader>
-              <CardTitle>License Key Defaults</CardTitle>
-              <CardDescription>Default values when generating new keys.</CardDescription>
+              <CardTitle>Mặc định Key</CardTitle>
+              <CardDescription>Giá trị mặc định khi tạo key mới.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -135,7 +135,7 @@ export default function Settings() {
                 name="defaultDurationMinutes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Duration (Minutes)</FormLabel>
+                    <FormLabel>Thời hạn (Phút)</FormLabel>
                     <FormControl>
                       <Input type="number" className="bg-background" {...field} />
                     </FormControl>
@@ -148,7 +148,7 @@ export default function Settings() {
                 name="defaultMaxConcurrent"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Max Concurrent Uses</FormLabel>
+                    <FormLabel>Tối đa đồng thời</FormLabel>
                     <FormControl>
                       <Input type="number" className="bg-background" {...field} />
                     </FormControl>
@@ -161,9 +161,9 @@ export default function Settings() {
                 name="defaultMaxUses"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Max Total Uses</FormLabel>
+                    <FormLabel>Tổng lượt tối đa</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Unlimited" className="bg-background" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)} />
+                      <Input type="number" placeholder="Không giới hạn" className="bg-background" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -174,9 +174,9 @@ export default function Settings() {
                 name="defaultDailyLimit"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Daily Limit</FormLabel>
+                    <FormLabel>Giới hạn/ngày</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Unlimited" className="bg-background" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)} />
+                      <Input type="number" placeholder="Không giới hạn" className="bg-background" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -187,7 +187,7 @@ export default function Settings() {
                 name="notifyExpiryDays"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Expiry Warning (Days)</FormLabel>
+                    <FormLabel>Cảnh báo hết hạn (ngày)</FormLabel>
                     <FormControl>
                       <Input type="number" className="bg-background" {...field} />
                     </FormControl>
@@ -200,7 +200,7 @@ export default function Settings() {
                 name="timezone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>System Timezone</FormLabel>
+                    <FormLabel>Múi giờ</FormLabel>
                     <FormControl>
                       <Input placeholder="UTC" className="bg-background" {...field} />
                     </FormControl>
@@ -211,9 +211,28 @@ export default function Settings() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Cài đặt Dùng thử</CardTitle>
+              <CardDescription>Cấu hình số lần dùng thử cho người dùng.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <FormLabel>Số lần thử miễn phí</FormLabel>
+                <Input value={3} disabled className="bg-muted text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Thay đổi cần sửa code</p>
+              </div>
+              <div title="Tính năng đang phát triển">
+                <Button type="button" variant="outline" disabled>
+                  Reset tất cả lượt thử
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex justify-end">
             <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving..." : "Save Configuration"}
+              {updateMutation.isPending ? "Đang lưu..." : "Lưu cài đặt"}
             </Button>
           </div>
         </form>

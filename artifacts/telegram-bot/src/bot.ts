@@ -225,6 +225,16 @@ async function handleCredentialInput(ctx: Context, raw: string) {
       await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
       await ctx.replyWithHTML(formatResult(result));
     } else {
+      // Block trial users from bulk check
+      if (access.mode === "trial") {
+        await ctx.replyWithHTML(
+          "⛔ <b>Tính năng check hàng loạt yêu cầu key.</b>\n\n" +
+          "Lần dùng thử miễn phí chỉ cho phép check <b>1 tài khoản</b> mỗi lần.\n\n" +
+          "Nhập key hoặc dán key vào chat để mở khoá tính năng này.",
+          Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+        );
+        return;
+      }
       // Release single-use slot immediately; bulk manages its own concurrency
       if (keyId !== undefined) { await releaseKey(keyId).catch(() => {}); keyId = undefined; }
       await runBulkCheck(ctx, valid.map(credToLine));
@@ -307,16 +317,15 @@ export function createBot(token: string): Telegraf {
     const telegramId = String(uid);
     const session = getSession(uid);
 
-    // Require valid key for bulk
+    // Bulk check requires an active key (trial is NOT enough)
     if (!session.activeKey) {
-      const trial = await checkTrial(telegramId);
-      if (!trial.hasTrialLeft) {
-        await ctx.reply(
-          "🔑 Cần có key để dùng tính năng bulk check.\n\nNhập /activate <key> để kích hoạt.",
-          Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
-        );
-        return;
-      }
+      await ctx.replyWithHTML(
+        "⛔ <b>Tính năng check hàng loạt yêu cầu key.</b>\n\n" +
+        "Lần dùng thử miễn phí chỉ cho phép check <b>1 tài khoản</b> mỗi lần.\n\n" +
+        "Dán key vào chat hoặc dùng /activate để kích hoạt.",
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+      );
+      return;
     }
 
     setSession(uid, { waitingBulk: true });

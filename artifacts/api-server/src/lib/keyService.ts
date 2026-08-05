@@ -415,6 +415,14 @@ export async function hasTrialLeft(telegramId: string): Promise<boolean> {
 
 export { FREE_TRIAL_LIMIT };
 
+/** Reset a user's trial count to 0 so they can use the free trial again. */
+export async function resetUserTrial(telegramId: string): Promise<void> {
+  await db
+    .update(usersTable)
+    .set({ trialCount: 0, updatedAt: new Date() })
+    .where(eq(usersTable.telegramId, telegramId));
+}
+
 // ─── Logging helpers ─────────────────────────────────────────────────────────
 
 export async function logUsage(data: {

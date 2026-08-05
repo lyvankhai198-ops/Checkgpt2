@@ -33,6 +33,7 @@ export * from './listUsageLogsParams';
 export * from './listUsersParams';
 export * from './newKeyRecord';
 export * from './okResult';
+export * from './resetUserTrial200';
 export * from './settingsEnvelope';
 export * from './settingsInput';
 export * from './systemSettings';

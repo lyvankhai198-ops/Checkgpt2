@@ -11,11 +11,11 @@ import { useAdminLogout } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/keys", label: "License Keys", icon: Key },
-  { href: "/users", label: "Users", icon: Users },
-  { href: "/logs", label: "Logs", icon: Activity },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/", label: "Tổng quan", icon: LayoutDashboard },
+  { href: "/keys", label: "Quản lý Key", icon: Key },
+  { href: "/users", label: "Người dùng", icon: Users },
+  { href: "/logs", label: "Nhật ký", icon: Activity },
+  { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -67,7 +67,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             disabled={logout.isPending}
           >
             <LogOut className="h-4 w-4" />
-            Sign Out
+            Đăng xuất
           </Button>
         </div>
       </aside>

@@ -295,6 +295,10 @@ page?: number;
 limit?: number;
 };
 
+export type ResetUserTrial200 = {
+  ok?: boolean;
+};
+
 export type ListUsageLogsParams = {
 page?: number;
 limit?: number;

@@ -50,37 +50,37 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: "Total Keys",
+      title: "Tổng Key",
       value: stats.totalKeys,
       icon: Key,
       color: "text-blue-500",
     },
     {
-      title: "Active Keys",
+      title: "Key hoạt động",
       value: stats.activeKeys,
       icon: ShieldCheck,
       color: "text-emerald-500",
     },
     {
-      title: "Total Users",
+      title: "Tổng người dùng",
       value: stats.totalUsers,
       icon: Users,
       color: "text-primary",
     },
     {
-      title: "Today's Uses",
+      title: "Lượt dùng hôm nay",
       value: stats.todayUses,
       icon: Activity,
       color: "text-orange-500",
     },
     {
-      title: "Expiring Soon",
+      title: "Sắp hết hạn",
       value: stats.expiringSoon,
       icon: AlertTriangle,
       color: "text-amber-500",
     },
     {
-      title: "Expired/Revoked",
+      title: "Hết hạn/Thu hồi",
       value: stats.expiredKeys,
       icon: XCircle,
       color: "text-destructive",
@@ -90,9 +90,9 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Tổng quan hệ thống</h1>
         <p className="text-muted-foreground mt-1">
-          System telemetry and key metrics.
+          Số liệu thống kê và hoạt động hệ thống.
         </p>
       </div>
 
@@ -114,7 +114,7 @@ export default function Dashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Usage Last 7 Days</CardTitle>
+          <CardTitle>Lượt sử dụng 7 ngày qua</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[300px] w-full">
