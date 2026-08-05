@@ -7,6 +7,9 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust loopback (localhost) + Nginx proxy — cần cho rate-limiter và IP logging
+app.set("trust proxy", "loopback, 127.0.0.1");
+
 app.use(
   pinoHttp({
     logger,

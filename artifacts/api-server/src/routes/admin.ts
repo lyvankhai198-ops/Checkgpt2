@@ -30,6 +30,7 @@ const loginLimiter = rateLimit({
   message: { error: "Too many login attempts, please try again later" },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 
 // ─── Login ────────────────────────────────────────────────────────────────────
