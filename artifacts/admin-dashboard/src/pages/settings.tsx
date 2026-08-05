@@ -357,7 +357,7 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <FormLabel>Số lần thử miễn phí</FormLabel>
+                <label className="text-sm font-medium">Số lần thử miễn phí</label>
                 <Input value={3} disabled className="bg-muted text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">Thay đổi cần sửa code</p>
               </div>
