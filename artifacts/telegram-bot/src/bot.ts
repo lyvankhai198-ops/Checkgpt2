@@ -29,7 +29,7 @@ async function guardRate(ctx: Context): Promise<boolean> {
 async function resolveAccess(ctx: Context): Promise<
   | { allowed: false }
   | { allowed: true; mode: "trial" }
-  | { allowed: true; mode: "key"; key: string; keyId: number }
+  | { allowed: true; mode: "key"; key: string; keyId: number; maxConcurrent: number }
 > {
   const uid = ctx.from!.id;
   const telegramId = String(uid);
@@ -41,7 +41,7 @@ async function resolveAccess(ctx: Context): Promise<
     if (v.valid) {
       const u = await useKey(session.activeKey, telegramId);
       if (u.allowed && u.keyId) {
-        return { allowed: true, mode: "key", key: session.activeKey, keyId: u.keyId };
+        return { allowed: true, mode: "key", key: session.activeKey, keyId: u.keyId, maxConcurrent: v.maxConcurrent ?? 1 };
       }
       if (u.reason === "concurrency_limit") {
         await ctx.reply("⏳ Bạn đang chạy quá số tác vụ đồng thời. Đợi lệnh hiện tại xong rồi thử lại.");
@@ -217,6 +217,10 @@ async function handleCredentialInput(ctx: Context, raw: string) {
   let keyId: number | undefined;
   if (access.mode === "key") keyId = access.keyId;
 
+  // Determine per-submission account limit based on key plan
+  // Trial → 1 account only; Basic (maxConcurrent=1) → 1; Pro (maxConcurrent>1) → 10
+  const maxAccounts = access.mode === "trial" ? 1 : access.maxConcurrent === 1 ? 1 : 10;
+
   try {
     if (valid.length === 1) {
       const line = credToLine(valid[0]);
@@ -224,17 +228,33 @@ async function handleCredentialInput(ctx: Context, raw: string) {
       const result = await checkSingle("account", line);
       await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
       await ctx.replyWithHTML(formatResult(result));
-    } else {
-      // Block trial users from bulk check
-      if (access.mode === "trial") {
+    } else if (access.mode === "trial") {
+      // Trial cannot use bulk at all
+      await ctx.replyWithHTML(
+        "⛔ <b>Tính năng check hàng loạt yêu cầu key.</b>\n\n" +
+        "Lần dùng thử miễn phí chỉ cho phép check <b>1 tài khoản</b> mỗi lần.\n\n" +
+        "Dán key vào chat để mở khoá tính năng này.",
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+      );
+      return;
+    } else if (valid.length > maxAccounts) {
+      // Key plan limit exceeded
+      if (maxAccounts === 1) {
         await ctx.replyWithHTML(
-          "⛔ <b>Tính năng check hàng loạt yêu cầu key.</b>\n\n" +
-          "Lần dùng thử miễn phí chỉ cho phép check <b>1 tài khoản</b> mỗi lần.\n\n" +
-          "Nhập key hoặc dán key vào chat để mở khoá tính năng này.",
-          Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+          `⛔ <b>Gói Basic chỉ cho phép check 1 tài khoản mỗi lần.</b>\n\n` +
+          `Bạn đang gửi <b>${valid.length} tài khoản</b>.\n\n` +
+          "Nâng cấp lên <b>Pro</b> để check tối đa 10 tài khoản mỗi lần.",
+          Markup.inlineKeyboard([[Markup.button.callback("🟣 Nâng cấp Pro", "plan_pro")]])
         );
-        return;
+      } else {
+        await ctx.replyWithHTML(
+          `⛔ <b>Gói Pro chỉ cho phép check tối đa 10 tài khoản mỗi lần.</b>\n\n` +
+          `Bạn đang gửi <b>${valid.length} tài khoản</b>.\n\n` +
+          "Vui lòng chia nhỏ danh sách thành từng đợt tối đa 10 tài khoản."
+        );
       }
+      return;
+    } else {
       // Release single-use slot immediately; bulk manages its own concurrency
       if (keyId !== undefined) { await releaseKey(keyId).catch(() => {}); keyId = undefined; }
       await runBulkCheck(ctx, valid.map(credToLine));
@@ -364,15 +384,46 @@ export function createBot(token: string): Telegraf {
     let keyId: number | undefined;
     if (access.mode === "key") keyId = access.keyId;
 
+    // Trial users cannot use bulk
+    if (access.mode === "trial") {
+      if (keyId !== undefined) await releaseKey(keyId).catch(() => {});
+      await ctx.replyWithHTML(
+        "⛔ <b>Tính năng check hàng loạt yêu cầu key.</b>\n\nDán key vào chat để mở khoá.",
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+      );
+      return;
+    }
+
+    // Per-plan account limit per submission
+    const maxAccounts = access.maxConcurrent === 1 ? 1 : 10;
+
     try {
       const fileLink = await ctx.telegram.getFileLink(doc.file_id);
       const resp = await fetch(fileLink.href);
       const text = await resp.text();
-      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean).slice(0, 500);
+      const allLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
-      if (lines.length === 0) {
+      if (allLines.length === 0) {
         await ctx.reply("❌ File trống");
         return;
+      }
+
+      // Basic plan: only first line is allowed
+      if (maxAccounts === 1 && allLines.length > 1) {
+        if (keyId !== undefined) await releaseKey(keyId).catch(() => {});
+        await ctx.replyWithHTML(
+          `⛔ <b>Gói Basic chỉ cho phép check 1 tài khoản mỗi lần.</b>\n\n` +
+          `File của bạn có <b>${allLines.length} dòng</b>.\n\n` +
+          "Nâng cấp lên <b>Pro</b> để gửi tối đa 10 tài khoản mỗi lần.",
+          Markup.inlineKeyboard([[Markup.button.callback("🟣 Nâng cấp Pro", "plan_pro")]])
+        );
+        return;
+      }
+
+      // Pro plan: max 10 accounts per submission
+      const lines = allLines.slice(0, maxAccounts);
+      if (allLines.length > maxAccounts) {
+        await ctx.reply(`⚠️ Chỉ xử lý ${maxAccounts} tài khoản đầu tiên. Vui lòng chia nhỏ danh sách.`);
       }
 
       // Release the single-use slot from resolveAccess immediately
@@ -489,9 +540,75 @@ export function createBot(token: string): Telegraf {
 
   // ── Inline button callbacks ──────────────────────────────────────────────────
 
+  // ── Buy key flow ─────────────────────────────────────────────────────────────
+
+  const planKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback("🟢 Basic  —  20.000đ", "plan_basic")],
+    [Markup.button.callback("🟣 Pro  —  99.000đ",   "plan_pro")],
+  ]);
+
   bot.action("buy_key", async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply("🛒 Tính năng mua key đang được phát triển. Vui lòng liên hệ admin để được cấp key.");
+    await ctx.replyWithHTML(
+      "🛒 <b>Chọn gói phù hợp với bạn:</b>",
+      planKeyboard
+    );
+  });
+
+  bot.action("plan_basic", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithHTML(
+      "🟢 <b>Gói Basic — 20.000đ</b>\n\n" +
+      "⏱ Thời hạn: <b>1 ngày</b> kể từ lúc kích hoạt\n" +
+      "🔢 Tổng lượt: <b>20 lượt</b>\n" +
+      "📌 Mỗi lần check 1 tài khoản trừ 1 lượt\n" +
+      "🚫 Tối đa <b>1 tài khoản</b> mỗi lần\n" +
+      "🚫 Không hỗ trợ check hàng loạt\n" +
+      "🔒 Key tự khoá khi hết 1 ngày <i>hoặc</i> hết 20 lượt\n\n" +
+      "<i>💡 Thời hạn chỉ bắt đầu tính từ lúc kích hoạt lần đầu.</i>",
+      Markup.inlineKeyboard([
+        [Markup.button.callback("💳 Mua gói Basic", "buy_basic")],
+        [Markup.button.callback("⬅️ Quay lại",       "buy_key")],
+      ])
+    );
+  });
+
+  bot.action("plan_pro", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithHTML(
+      "🟣 <b>Gói Pro — 99.000đ</b>\n\n" +
+      "⏱ Thời hạn: <b>30 ngày</b> kể từ lúc kích hoạt\n" +
+      "🔢 Tổng lượt: <b>30 lần gửi</b>\n" +
+      "📌 Mỗi lần gửi 1–10 tài khoản chỉ trừ <b>1 lượt</b>\n" +
+      "✅ Tối đa <b>10 tài khoản</b> mỗi lần\n" +
+      "✅ Hỗ trợ check hàng loạt\n" +
+      "🔒 Key tự khoá khi hết 30 ngày <i>hoặc</i> hết 30 lần gửi\n\n" +
+      "<i>💡 Thời hạn chỉ bắt đầu tính từ lúc kích hoạt lần đầu.</i>",
+      Markup.inlineKeyboard([
+        [Markup.button.callback("💳 Mua gói Pro", "buy_pro")],
+        [Markup.button.callback("⬅️ Quay lại",    "buy_key")],
+      ])
+    );
+  });
+
+  bot.action("buy_basic", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithHTML(
+      "💳 <b>Mua gói Basic — 20.000đ</b>\n\n" +
+      "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
+      "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
+      "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+    );
+  });
+
+  bot.action("buy_pro", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithHTML(
+      "💳 <b>Mua gói Pro — 99.000đ</b>\n\n" +
+      "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
+      "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
+      "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+    );
   });
 
   bot.action("help_check", async (ctx) => {

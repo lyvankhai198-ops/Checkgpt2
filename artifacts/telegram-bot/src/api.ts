@@ -45,6 +45,7 @@ export interface ValidateResponse {
   dailyUsesLeft?: number;
   totalUsesLeft?: number;
   retryAfter?: string;
+  maxConcurrent?: number;
 }
 
 export async function validateKey(rawKey: string, telegramId?: string): Promise<ValidateResponse> {
