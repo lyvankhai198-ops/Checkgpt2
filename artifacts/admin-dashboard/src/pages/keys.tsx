@@ -178,8 +178,24 @@ export default function Keys() {
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
     toast({ title: "Đã copy", description: "Đã copy vào clipboard." });
+  };
+
+  const fallbackCopy = (text: string) => {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
   };
 
   return (
@@ -377,8 +393,7 @@ export default function Keys() {
             <DialogFooter>
               <Button variant="outline" onClick={() => {
                 const text = autoStockResult.keys.map(k => k.key ?? "").filter(Boolean).join("\n");
-                navigator.clipboard.writeText(text);
-                toast({ title: "Đã sao chép", description: `${autoStockResult.keys.length} key đã được sao chép vào clipboard.` });
+                copyToClipboard(text);
               }}>
                 <Copy className="mr-2 h-4 w-4" /> Sao chép tất cả
               </Button>
