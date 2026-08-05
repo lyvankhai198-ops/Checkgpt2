@@ -165,7 +165,7 @@ async function runBulkCheck(ctx: Context, lines: string[]) {
         );
       } catch { /* ignore */ }
 
-      // Send live accounts as a text file if any
+      // Send result files
       if (live > 0) {
         const liveLines = results
           .filter(x => x.status === "live")
@@ -174,6 +174,26 @@ async function runBulkCheck(ctx: Context, lines: string[]) {
         await ctx.replyWithDocument(
           { source: Buffer.from(liveLines, "utf-8"), filename: "live_accounts.txt" },
           { caption: `✅ ${live} tài khoản Live` }
+        );
+      }
+      if (die > 0) {
+        const dieLines = results
+          .filter(x => x.status === "die")
+          .map(x => x.email ?? x.input)
+          .join("\n");
+        await ctx.replyWithDocument(
+          { source: Buffer.from(dieLines, "utf-8"), filename: "die_accounts.txt" },
+          { caption: `❌ ${die} tài khoản Die` }
+        );
+      }
+      if (deact > 0) {
+        const deactLines = results
+          .filter(x => x.status === "deactivated")
+          .map(x => x.email ?? x.input)
+          .join("\n");
+        await ctx.replyWithDocument(
+          { source: Buffer.from(deactLines, "utf-8"), filename: "deact_accounts.txt" },
+          { caption: `⚠️ ${deact} tài khoản Deact` }
         );
       }
     },
