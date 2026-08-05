@@ -39,7 +39,7 @@ export interface PlanConfig {
 
 let _plansCache: PlanConfig[] | null = null;
 let _plansCacheAt = 0;
-const PLANS_TTL = 5 * 60 * 1000;
+const PLANS_TTL = 30 * 1000; // 30 giây — đồng bộ nhanh với web
 
 const DEFAULT_PLANS: PlanConfig[] = [
   {

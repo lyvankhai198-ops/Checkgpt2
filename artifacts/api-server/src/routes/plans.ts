@@ -68,7 +68,8 @@ async function ensurePlansSeeded() {
 
 router.get("/plans", async (_req, res): Promise<void> => {
   await ensurePlansSeeded();
-  const plans = await db.select().from(plansTable);
+  // Chỉ trả plans đang bật — bot không cần biết plans đã tắt
+  const plans = await db.select().from(plansTable).where(eq(plansTable.enabled, true));
   res.json(plans);
 });
 
