@@ -15,6 +15,18 @@ description: VPS configuration, deploy flow, and known issues for the CheckGPT p
 - .env: /opt/checkgpt/.env
 - SSH key for GitHub Actions: /root/.ssh/github_actions (private), pub added to authorized_keys
 
+## Admin Dashboard
+- URL: http://103.180.138.203/checkgpt-admin/
+- Static files: /var/www/checkgpt-admin/
+- API accessed via Nginx proxy: /checkgpt-api/ → localhost:3001 (same-origin for cookies)
+- Build env: PORT=3002 BASE_PATH=/checkgpt-admin/ VITE_API_BASE_URL=http://103.180.138.203/checkgpt-api
+- Cookie: secure=false (no HTTPS), sameSite=lax — controlled by COOKIE_SECURE=true in .env
+
+## Nginx
+- Config: /etc/nginx/sites-available/botadmin (active)
+- Port 80 serves multiple projects: Bot Quà Tặng (/admin-panel/), CheckGPT (/checkgpt-admin/, /checkgpt-api/)
+- Do NOT edit default or create conflicting server_name _ blocks
+
 ## Deploy flow
 - Push to GitHub main → GitHub Actions `deploy.yml` auto SSHs into VPS, pulls, builds, pm2 restarts
 - Health check every 15min via `health-check.yml`, auto-restarts services if down
