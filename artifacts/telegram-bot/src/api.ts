@@ -83,7 +83,9 @@ export async function useTrial(telegramId: string): Promise<{ allowed: boolean; 
 export interface ValidateResponse {
   valid: boolean;
   reason?: string;
+  plan?: string;          // "basic" | "pro"
   expiresAt?: string;
+  maxConcurrent?: number;
   totalUses?: number;
   maxTotalUses?: number | null;
   dailyUses?: number;
@@ -91,7 +93,6 @@ export interface ValidateResponse {
   dailyUsesLeft?: number | null;
   totalUsesLeft?: number | null;
   retryAfter?: string;
-  maxConcurrent?: number;
 }
 
 export async function validateKey(rawKey: string, telegramId?: string): Promise<ValidateResponse> {

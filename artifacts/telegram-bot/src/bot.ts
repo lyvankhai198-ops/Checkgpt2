@@ -29,7 +29,7 @@ async function guardRate(ctx: Context): Promise<boolean> {
 async function resolveAccess(ctx: Context): Promise<
   | { allowed: false }
   | { allowed: true; mode: "trial" }
-  | { allowed: true; mode: "key"; key: string; keyId: number; maxConcurrent: number }
+  | { allowed: true; mode: "key"; key: string; keyId: number; plan: string; maxConcurrent: number }
 > {
   const uid = ctx.from!.id;
   const telegramId = String(uid);
@@ -41,7 +41,7 @@ async function resolveAccess(ctx: Context): Promise<
     if (v.valid) {
       const u = await useKey(session.activeKey, telegramId);
       if (u.allowed && u.keyId) {
-        return { allowed: true, mode: "key", key: session.activeKey, keyId: u.keyId, maxConcurrent: v.maxConcurrent ?? 1 };
+        return { allowed: true, mode: "key", key: session.activeKey, keyId: u.keyId, plan: v.plan ?? "basic", maxConcurrent: v.maxConcurrent ?? 1 };
       }
       if (u.reason === "concurrency_limit") {
         await ctx.reply("⏳ Bạn đang chạy quá số tác vụ đồng thời. Đợi lệnh hiện tại xong rồi thử lại.");
@@ -218,8 +218,9 @@ async function handleCredentialInput(ctx: Context, raw: string) {
   if (access.mode === "key") keyId = access.keyId;
 
   // Determine per-submission account limit based on key plan
-  // Trial → 1 account only; Basic (maxConcurrent=1) → 1; Pro (maxConcurrent>1) → 10
-  const maxAccounts = access.mode === "trial" ? 1 : access.maxConcurrent === 1 ? 1 : 10;
+  // Trial → 1; Basic → 1; Pro → 10
+  const isPro = access.mode === "key" && access.plan === "pro";
+  const maxAccounts = access.mode === "trial" ? 1 : isPro ? 10 : 1;
 
   try {
     if (valid.length === 1) {
@@ -410,7 +411,8 @@ export function createBot(token: string): Telegraf {
     }
 
     // Per-plan account limit per submission
-    const maxAccounts = access.maxConcurrent === 1 ? 1 : 10;
+    const isPro = access.mode === "key" && access.plan === "pro";
+    const maxAccounts = isPro ? 10 : 1;
 
     try {
       const fileLink = await ctx.telegram.getFileLink(doc.file_id);

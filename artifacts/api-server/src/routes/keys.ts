@@ -32,7 +32,9 @@ router.get("/keys/validate", keyLimiter, async (req, res): Promise<void> => {
   res.json({
     valid: result.valid,
     reason: result.reason,
+    plan: k?.plan ?? "basic",
     expiresAt: k?.expiresAt,
+    maxConcurrent: k?.maxConcurrent ?? 1,
     // Usage counters — raw values so bot can render "X/Y"
     totalUses: k?.totalUses ?? 0,
     maxTotalUses: k?.maxTotalUses ?? null,
