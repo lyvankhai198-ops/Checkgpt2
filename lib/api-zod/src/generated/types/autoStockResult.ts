@@ -5,6 +5,7 @@
  * ChatGPT Account Checker API
  * OpenAPI spec version: 0.1.0
  */
+import type { AutoStockResultKeysItem } from './autoStockResultKeysItem';
 
 export interface AutoStockResult {
   created: number;
@@ -12,4 +13,5 @@ export interface AutoStockResult {
   target: number;
   newAvailable?: number;
   message?: string;
+  keys?: AutoStockResultKeysItem[];
 }

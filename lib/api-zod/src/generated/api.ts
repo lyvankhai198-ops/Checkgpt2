@@ -375,7 +375,12 @@ export const AutoStockResponse = zod.object({
   "available": zod.number(),
   "target": zod.number(),
   "newAvailable": zod.number().optional(),
-  "message": zod.string().optional()
+  "message": zod.string().optional(),
+  "keys": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "key": zod.string().optional(),
+  "display": zod.string().optional()
+})).optional()
 })
 
 

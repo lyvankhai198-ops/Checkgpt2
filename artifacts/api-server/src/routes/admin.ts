@@ -432,7 +432,13 @@ router.post("/admin/inventory/auto-stock", adminAuthMiddleware, async (req, res)
     ipAddress: req.ip,
   });
 
-  res.json({ created: created.length, available, target, newAvailable: available + created.length });
+  res.json({
+    created: created.length,
+    available,
+    target,
+    newAvailable: available + created.length,
+    keys: created.map(k => ({ id: k.id, key: k.rawKey, display: k.keyDisplay })),
+  });
 });
 
 export default router;

@@ -761,3 +761,11 @@ components:
         target: { type: number }
         newAvailable: { type: number }
         message: { type: string }
+        keys:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: number }
+              key: { type: string }
+              display: { type: string }

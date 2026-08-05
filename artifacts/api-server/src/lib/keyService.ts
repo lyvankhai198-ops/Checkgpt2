@@ -94,7 +94,9 @@ export async function createKeys(opts: CreateKeyOptions = {}): Promise<CreatedKe
   for (let i = 0; i < count; i++) {
     const rawKey = generateRawKey();
     const keyHash = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
-    const keyDisplay = rawKey.slice(0, 8);
+    // Store the full key as keyDisplay so admins can copy/send it later.
+    // Security: bcrypt hash is still used for validation; keyDisplay is for admin dashboard only.
+    const keyDisplay = rawKey;
 
     const [row] = await db
       .insert(licenseKeysTable)

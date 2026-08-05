@@ -81,6 +81,7 @@ export default function Keys() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createdKeys, setCreatedKeys] = useState<{rawKey: string, keyDisplay: string}[] | null>(null);
   const [planFilter, setPlanFilter] = useState<string>("all");
+  const [autoStockResult, setAutoStockResult] = useState<{ plan: string; keys: { id?: number; key?: string; display?: string }[] } | null>(null);
 
   const { data, isLoading } = useListKeys(
     { page, limit, search: search || undefined, status: status !== "all" ? status : undefined },
@@ -105,7 +106,7 @@ export default function Keys() {
           if (res.created === 0) {
             toast({ title: "Kho đã đủ", description: res.message ?? `Kho ${plan} đã đạt mục tiêu.` });
           } else {
-            toast({ title: "Đã bổ sung kho", description: `Tạo thêm ${res.created} key ${plan}. Kho hiện: ${res.newAvailable}/${res.target}.` });
+            setAutoStockResult({ plan, keys: res.keys ?? [] });
           }
         },
         onError: () => toast({ title: "Lỗi", description: "Không thể bổ sung kho.", variant: "destructive" }),
@@ -353,6 +354,40 @@ export default function Keys() {
         </div>
       </div>
 
+      {/* ── Auto-stock result dialog ─────────────────────────────────── */}
+      {autoStockResult && (
+        <Dialog open={!!autoStockResult} onOpenChange={() => setAutoStockResult(null)}>
+          <DialogContent className="sm:max-w-[560px]">
+            <DialogHeader>
+              <DialogTitle>✅ Đã tạo {autoStockResult.keys.length} key {autoStockResult.plan === "basic" ? "🟢 Basic" : "🟣 Pro"}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded p-3">
+              ⚠️ Sao chép key ngay bây giờ — key đầy đủ chỉ hiển thị một lần duy nhất ở đây.
+            </p>
+            <div className="space-y-1 max-h-[320px] overflow-y-auto">
+              {autoStockResult.keys.map((k) => (
+                <div key={k.id ?? k.key} className="flex items-center gap-2 group">
+                  <span className="font-mono text-xs bg-muted px-2 py-1 rounded flex-1 select-all">{k.key ?? "—"}</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => copyToClipboard(k.key ?? "")}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                const text = autoStockResult.keys.map(k => k.key ?? "").filter(Boolean).join("\n");
+                navigator.clipboard.writeText(text);
+                toast({ title: "Đã sao chép", description: `${autoStockResult.keys.length} key đã được sao chép vào clipboard.` });
+              }}>
+                <Copy className="mr-2 h-4 w-4" /> Sao chép tất cả
+              </Button>
+              <Button onClick={() => setAutoStockResult(null)}>Đóng</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* ── Inventory cards ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4">
         {(["basic", "pro"] as const).map((plan) => {
@@ -462,10 +497,21 @@ export default function Keys() {
                     <TableRow key={key.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono bg-muted px-2 py-1 rounded text-xs select-all">
-                            {key.keyDisplay}
+                          <span
+                            className="font-mono bg-muted px-2 py-1 rounded text-xs select-all"
+                            title={key.keyDisplay}
+                          >
+                            {key.keyDisplay.length > 12
+                              ? key.keyDisplay.slice(0, 14) + "…"
+                              : key.keyDisplay}
                           </span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(key.keyDisplay)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            title="Sao chép key đầy đủ"
+                            onClick={() => copyToClipboard(key.keyDisplay)}
+                          >
                             <Copy className="h-3 w-3" />
                           </Button>
                         </div>

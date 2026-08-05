@@ -354,12 +354,19 @@ export interface AutoStockInput {
   plan: AutoStockInputPlan;
 }
 
+export type AutoStockResultKeysItem = {
+  id?: number;
+  key?: string;
+  display?: string;
+};
+
 export interface AutoStockResult {
   created: number;
   available: number;
   target: number;
   newAvailable?: number;
   message?: string;
+  keys?: AutoStockResultKeysItem[];
 }
 
 export type ListKeysParams = {

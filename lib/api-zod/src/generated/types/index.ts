@@ -15,6 +15,7 @@ export * from './auditLogPage';
 export * from './autoStockInput';
 export * from './autoStockInputPlan';
 export * from './autoStockResult';
+export * from './autoStockResultKeysItem';
 export * from './batchKeys';
 export * from './chartPoint';
 export * from './checkInput';
