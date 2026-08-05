@@ -4,7 +4,10 @@ import {
   useKey, releaseKey, checkSingle, checkBulk,
   type CheckResult,
 } from "./api.js";
-import { RateLimiter, formatResult, formatExpiry, escHtml, parseKey } from "./utils.js";
+import {
+  RateLimiter, formatResult, formatExpiry, escHtml, parseKey,
+  parseCredentials, maskCred, credToLine,
+} from "./utils.js";
 import { getSession, setSession } from "./store.js";
 
 const TRIAL_LIMIT = 3;
@@ -180,6 +183,59 @@ async function runBulkCheck(ctx: Context, lines: string[]) {
   });
 }
 
+// ─── Shared credential-input handler (used by /check + plain-text) ───────────
+
+async function handleCredentialInput(ctx: Context, raw: string) {
+  const { valid, errors } = parseCredentials(raw);
+
+  // Nothing recognised at all — stay silent (might be unrelated text)
+  if (valid.length === 0 && errors.length === 0) return;
+
+  // Build preview
+  const preview: string[] = [];
+  if (valid.length > 0) {
+    preview.push(`📋 <b>Nhận diện được ${valid.length} tài khoản:</b>`);
+    valid.forEach((c, i) => preview.push(`  ${i + 1}. ${maskCred(c)}`));
+  }
+  if (errors.length > 0) {
+    if (preview.length) preview.push("");
+    preview.push(`⚠️ <b>${errors.length} dòng lỗi (bỏ qua):</b>`);
+    errors.forEach(e => preview.push(`  • ${e}`));
+  }
+
+  if (valid.length === 0) {
+    await ctx.replyWithHTML(preview.join("\n"));
+    return;
+  }
+
+  await ctx.replyWithHTML(preview.join("\n"));
+
+  // Gate access
+  const access = await resolveAccess(ctx);
+  if (!access.allowed) return;
+
+  let keyId: number | undefined;
+  if (access.mode === "key") keyId = access.keyId;
+
+  try {
+    if (valid.length === 1) {
+      const line = credToLine(valid[0]);
+      const thinkMsg = await ctx.reply("⏳ Đang kiểm tra...");
+      const result = await checkSingle("account", line);
+      await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
+      await ctx.replyWithHTML(formatResult(result));
+    } else {
+      // Release single-use slot immediately; bulk manages its own concurrency
+      if (keyId !== undefined) { await releaseKey(keyId).catch(() => {}); keyId = undefined; }
+      await runBulkCheck(ctx, valid.map(credToLine));
+    }
+  } catch (e) {
+    await ctx.reply(`❌ Lỗi: ${(e as Error).message}`);
+  } finally {
+    if (keyId !== undefined) await releaseKey(keyId).catch(() => {});
+  }
+}
+
 // ─── Bot setup ────────────────────────────────────────────────────────────────
 
 export function createBot(token: string): Telegraf {
@@ -212,15 +268,16 @@ export function createBot(token: string): Telegraf {
   bot.help(async (ctx) => {
     await ctx.replyWithHTML(
       "<b>📖 Hướng dẫn sử dụng</b>\n\n" +
-      "<b>Lệnh cơ bản:</b>\n" +
-      "• /check email|pass — Check 1 tài khoản\n" +
-      "• /check email|pass|2fa — Check với TOTP\n" +
+      "<b>✨ Check không cần lệnh:</b>\n" +
+      "Dán thẳng tài khoản vào chat — bot tự nhận diện và check ngay!\n\n" +
+      "<b>Định dạng hỗ trợ:</b>\n" +
+      "<code>email|password</code>\n" +
+      "<code>email|password|TOTP_SECRET</code>\n" +
+      "Nhiều tài khoản: mỗi dòng 1 tài khoản\n\n" +
+      "<b>Lệnh khác:</b>\n" +
       "• /bulk — Upload file .txt để check hàng loạt\n" +
       "• /activate KEY — Kích hoạt key\n" +
-      "• /status — Xem trạng thái key hiện tại\n\n" +
-      "<b>Định dạng dữ liệu:</b>\n" +
-      "<code>email@gmail.com|password</code>\n" +
-      "<code>email@gmail.com|password|TOTP_SECRET</code>\n\n" +
+      "• /status — Xem trạng thái key\n\n" +
       "<b>Lưu ý:</b> Mỗi người dùng mới được dùng thử miễn phí 3 lần."
     );
   });
@@ -229,36 +286,17 @@ export function createBot(token: string): Telegraf {
   bot.command("check", async (ctx) => {
     if (!await guardRate(ctx)) return;
 
-    // Normalize: strip newlines so Telegram line-wrapping doesn't break email|pass|2fa
-    const text = ctx.message.text.replace(/^\/check\s*/i, "").trim().replace(/\s*\n\s*/g, "");
-    if (!text) {
+    const raw = ctx.message.text.replace(/^\/check\s*/i, "").trim();
+    if (!raw) {
       await ctx.replyWithHTML(
-        "📝 <b>Cách dùng:</b>\n" +
+        "📝 Dán thẳng tài khoản vào chat không cần lệnh, hoặc dùng:\n" +
         "<code>/check email|password</code>\n" +
         "<code>/check email|password|2fa_secret</code>"
       );
       return;
     }
 
-    const access = await resolveAccess(ctx);
-    if (!access.allowed) return;
-
-    const mode = detectMode(text);
-    const thinkMsg = await ctx.reply("⏳ Đang kiểm tra...");
-
-    let keyId: number | undefined;
-    if (access.mode === "key") keyId = access.keyId;
-
-    try {
-      const result = await checkSingle(mode, text);
-      await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
-      await ctx.replyWithHTML(formatResult(result));
-    } catch (e) {
-      await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
-      await ctx.reply(`❌ Lỗi: ${(e as Error).message}`);
-    } finally {
-      if (keyId !== undefined) await releaseKey(keyId).catch(() => {});
-    }
+    await handleCredentialInput(ctx, raw);
   });
 
   // ── /bulk ───────────────────────────────────────────────────────────────────
@@ -451,8 +489,10 @@ export function createBot(token: string): Telegraf {
     await ctx.answerCbQuery();
     await ctx.replyWithHTML(
       "🔍 <b>Cách check tài khoản:</b>\n\n" +
-      "<code>/check email|password</code>\n" +
-      "<code>/check email|password|2fa</code>\n\n" +
+      "Dán thẳng vào chat (không cần lệnh):\n" +
+      "<code>email|password</code>\n" +
+      "<code>email|password|TOTP_SECRET</code>\n\n" +
+      "Nhiều tài khoản cùng lúc — mỗi dòng 1 tài khoản.\n\n" +
       "Hoặc dùng /bulk để upload file .txt check hàng loạt."
     );
   });
@@ -480,6 +520,27 @@ export function createBot(token: string): Telegraf {
         `🟢 Hợp lệ: <b>${v.valid}</b>\n⌛ Hết hạn: <b>${formatExpiry(v.expiresAt)}</b>`
       );
     }
+  });
+
+  // ── Plain-text message → auto credential check (no /check needed) ───────────
+  bot.on("text", async (ctx) => {
+    const uid = ctx.from?.id;
+    if (!uid) return;
+
+    const raw = ctx.message.text.trim();
+
+    // Ignore commands (handled above)
+    if (raw.startsWith("/")) return;
+
+    // Ignore if user is waiting for bulk file upload
+    const session = getSession(uid);
+    if (session.waitingBulk) return;
+
+    // Only handle if text looks like credential data
+    if (!raw.includes("@")) return;
+
+    if (!await guardRate(ctx)) return;
+    await handleCredentialInput(ctx, raw);
   });
 
   // ── Global error handler ─────────────────────────────────────────────────────
