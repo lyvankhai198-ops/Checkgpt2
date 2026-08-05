@@ -1,0 +1,18 @@
+#!/bin/bash
+# Auto-push to GitHub after every git commit (runs in background)
+
+# If GITHUB_PAT is not set, skip silently
+if [ -z "$GITHUB_PAT" ]; then
+  exit 0
+fi
+
+# Get the last commit message
+MSG=$(git log -1 --pretty=%s 2>/dev/null || echo "Update code")
+
+# Run push in background so the commit isn't blocked
+(
+  bash "$(git rev-parse --show-toplevel)/scripts/push.sh" "$MSG" \
+    >> /tmp/auto-push.log 2>&1
+) &
+
+exit 0
