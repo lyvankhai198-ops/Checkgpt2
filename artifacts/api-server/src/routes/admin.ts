@@ -61,8 +61,9 @@ router.post("/admin/login", loginLimiter, async (req, res): Promise<void> => {
   res
     .cookie("admin_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      // secure chỉ bật khi có HTTPS (COOKIE_SECURE=true trong .env)
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite: "lax",
       maxAge: 24 * 60 * 60 * 1000, // 24h
     })
     .json({ ok: true, username: admin.username });
