@@ -348,6 +348,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditLogPage"
 
+  /prices:
+    get:
+      operationId: getPrices
+      tags: [public]
+      summary: Get current plan prices (no auth required)
+      responses:
+        "200":
+          description: Prices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PricesResponse"
+
+  /admin/inventory/auto-stock:
+    post:
+      operationId: autoStock
+      tags: [admin]
+      summary: Auto-create keys to reach the stock target for a plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutoStockInput"
+      responses:
+        "200":
+          description: Auto-stock result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutoStockResult"
+
   # ── Settings ──────────────────────────────────────────────────────────────────
 
   /admin/settings:
@@ -673,6 +705,10 @@ components:
         defaultMaxConcurrent: { type: ["number", "null"] }
         notifyExpiryDays: { type: ["number", "null"] }
         welcomeMessage: { type: ["string", "null"] }
+        basicPrice: { type: ["number", "null"] }
+        proPrice: { type: ["number", "null"] }
+        basicStockTarget: { type: ["number", "null"] }
+        proStockTarget: { type: ["number", "null"] }
         updatedAt: { type: ["string", "null"] }
 
     SettingsEnvelope:
@@ -692,3 +728,36 @@ components:
         defaultMaxConcurrent: { type: number }
         notifyExpiryDays: { type: number }
         welcomeMessage: { type: string }
+        basicPrice: { type: number }
+        proPrice: { type: number }
+        basicStockTarget: { type: number }
+        proStockTarget: { type: number }
+
+    PricesResponse:
+      type: object
+      required: [basicPrice, proPrice, basicPriceFormatted, proPriceFormatted]
+      properties:
+        basicPrice: { type: number }
+        proPrice: { type: number }
+        basicPriceFormatted: { type: string }
+        proPriceFormatted: { type: string }
+        basicStockTarget: { type: number }
+        proStockTarget: { type: number }
+
+    AutoStockInput:
+      type: object
+      required: [plan]
+      properties:
+        plan:
+          type: string
+          enum: [basic, pro]
+
+    AutoStockResult:
+      type: object
+      required: [created, available, target]
+      properties:
+        created: { type: number }
+        available: { type: number }
+        target: { type: number }
+        newAvailable: { type: number }
+        message: { type: string }

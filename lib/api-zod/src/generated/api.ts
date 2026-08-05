@@ -351,6 +351,35 @@ export const ListAuditLogsResponse = zod.object({
 
 
 /**
+ * @summary Get current plan prices (no auth required)
+ */
+export const GetPricesResponse = zod.object({
+  "basicPrice": zod.number(),
+  "proPrice": zod.number(),
+  "basicPriceFormatted": zod.string(),
+  "proPriceFormatted": zod.string(),
+  "basicStockTarget": zod.number().optional(),
+  "proStockTarget": zod.number().optional()
+})
+
+
+/**
+ * @summary Auto-create keys to reach the stock target for a plan
+ */
+export const AutoStockBody = zod.object({
+  "plan": zod.enum(['basic', 'pro'])
+})
+
+export const AutoStockResponse = zod.object({
+  "created": zod.number(),
+  "available": zod.number(),
+  "target": zod.number(),
+  "newAvailable": zod.number().optional(),
+  "message": zod.string().optional()
+})
+
+
+/**
  * @summary Get system settings
  */
 export const GetSettingsResponse = zod.object({
@@ -364,6 +393,10 @@ export const GetSettingsResponse = zod.object({
   "defaultMaxConcurrent": zod.number().nullish(),
   "notifyExpiryDays": zod.number().nullish(),
   "welcomeMessage": zod.string().nullish(),
+  "basicPrice": zod.number().nullish(),
+  "proPrice": zod.number().nullish(),
+  "basicStockTarget": zod.number().nullish(),
+  "proStockTarget": zod.number().nullish(),
   "updatedAt": zod.string().nullish()
 }).optional()
 })
@@ -380,7 +413,11 @@ export const UpdateSettingsBody = zod.object({
   "defaultDailyLimit": zod.number().nullish(),
   "defaultMaxConcurrent": zod.number().optional(),
   "notifyExpiryDays": zod.number().optional(),
-  "welcomeMessage": zod.string().optional()
+  "welcomeMessage": zod.string().optional(),
+  "basicPrice": zod.number().optional(),
+  "proPrice": zod.number().optional(),
+  "basicStockTarget": zod.number().optional(),
+  "proStockTarget": zod.number().optional()
 })
 
 export const UpdateSettingsResponse = zod.object({

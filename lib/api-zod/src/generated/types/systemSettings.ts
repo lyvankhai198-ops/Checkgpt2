@@ -25,5 +25,13 @@ export interface SystemSettings {
   /** @nullable */
   welcomeMessage?: string | null;
   /** @nullable */
+  basicPrice?: number | null;
+  /** @nullable */
+  proPrice?: number | null;
+  /** @nullable */
+  basicStockTarget?: number | null;
+  /** @nullable */
+  proStockTarget?: number | null;
+  /** @nullable */
   updatedAt?: string | null;
 }

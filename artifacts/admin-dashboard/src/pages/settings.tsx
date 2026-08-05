@@ -23,6 +23,10 @@ const settingsSchema = z.object({
   defaultMaxConcurrent: z.coerce.number().min(1).default(1),
   notifyExpiryDays: z.coerce.number().min(0).default(3),
   welcomeMessage: z.string().optional(),
+  basicPrice: z.coerce.number().min(0).default(20000),
+  proPrice: z.coerce.number().min(0).default(99000),
+  basicStockTarget: z.coerce.number().min(1).default(50),
+  proStockTarget: z.coerce.number().min(1).default(20),
 });
 
 export default function Settings() {
@@ -44,6 +48,10 @@ export default function Settings() {
       defaultMaxConcurrent: 1,
       notifyExpiryDays: 3,
       welcomeMessage: "Welcome to ChatGPT Account Checker Bot!",
+      basicPrice: 20000,
+      proPrice: 99000,
+      basicStockTarget: 50,
+      proStockTarget: 20,
     },
   });
 
@@ -58,6 +66,10 @@ export default function Settings() {
         defaultMaxConcurrent: data.settings.defaultMaxConcurrent || 1,
         notifyExpiryDays: data.settings.notifyExpiryDays || 3,
         welcomeMessage: data.settings.welcomeMessage || "",
+        basicPrice: data.settings.basicPrice ?? 20000,
+        proPrice: data.settings.proPrice ?? 99000,
+        basicStockTarget: data.settings.basicStockTarget ?? 50,
+        proStockTarget: data.settings.proStockTarget ?? 20,
       });
     }
   }, [data, form]);
@@ -208,6 +220,43 @@ export default function Settings() {
                   </FormItem>
                 )}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Giá gói & Kho key</CardTitle>
+              <CardDescription>Giá hiển thị cho khách trên bot và số lượng key mục tiêu mỗi gói.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <FormField control={form.control} name="basicPrice" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>🟢 Giá gói Basic (VND)</FormLabel>
+                  <FormControl><Input type="number" className="bg-background" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="proPrice" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>🟣 Giá gói Pro (VND)</FormLabel>
+                  <FormControl><Input type="number" className="bg-background" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="basicStockTarget" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>🟢 Mục tiêu kho Basic (key)</FormLabel>
+                  <FormControl><Input type="number" min={1} className="bg-background" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="proStockTarget" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>🟣 Mục tiêu kho Pro (key)</FormLabel>
+                  <FormControl><Input type="number" min={1} className="bg-background" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </CardContent>
           </Card>
 

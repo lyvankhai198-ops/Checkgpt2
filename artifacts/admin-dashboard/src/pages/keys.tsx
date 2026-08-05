@@ -9,6 +9,7 @@ import {
   getExportKeysCsvUrl,
   useGetInventory,
   getGetInventoryQueryKey,
+  useAutoStock,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,25 @@ export default function Keys() {
 
   const createMutation = useCreateKeys();
   const updateMutation = useUpdateKey();
+  const autoStockMutation = useAutoStock();
+
+  const handleAutoStock = (plan: "basic" | "pro") => {
+    autoStockMutation.mutate(
+      { data: { plan } },
+      {
+        onSuccess: (res) => {
+          queryClient.invalidateQueries({ queryKey: getGetInventoryQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getListKeysQueryKey() });
+          if (res.created === 0) {
+            toast({ title: "Kho đã đủ", description: res.message ?? `Kho ${plan} đã đạt mục tiêu.` });
+          } else {
+            toast({ title: "Đã bổ sung kho", description: `Tạo thêm ${res.created} key ${plan}. Kho hiện: ${res.newAvailable}/${res.target}.` });
+          }
+        },
+        onError: () => toast({ title: "Lỗi", description: "Không thể bổ sung kho.", variant: "destructive" }),
+      }
+    );
+  };
 
   const openQuickCreate = (plan: "basic" | "pro") => {
     const preset = PLAN_PRESETS[plan];
@@ -347,7 +367,7 @@ export default function Keys() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
-                <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                <div className="grid grid-cols-3 gap-2 text-center text-sm mb-3">
                   <div>
                     <div className="text-2xl font-bold">{inv?.available ?? "—"}</div>
                     <div className="text-xs text-muted-foreground">Còn lại</div>
@@ -361,6 +381,15 @@ export default function Keys() {
                     <div className="text-xs text-muted-foreground">Tổng</div>
                   </div>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`w-full text-xs ${isBasic ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" : "border-purple-500/30 text-purple-400 hover:bg-purple-500/10"}`}
+                  disabled={autoStockMutation.isPending}
+                  onClick={() => handleAutoStock(plan)}
+                >
+                  {autoStockMutation.isPending ? "Đang tạo..." : "⚡ Bổ sung kho tự động"}
+                </Button>
               </CardContent>
             </Card>
           );

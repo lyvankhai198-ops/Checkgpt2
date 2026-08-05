@@ -17,4 +17,8 @@ export interface SettingsInput {
   defaultMaxConcurrent?: number;
   notifyExpiryDays?: number;
   welcomeMessage?: string;
+  basicPrice?: number;
+  proPrice?: number;
+  basicStockTarget?: number;
+  proStockTarget?: number;
 }

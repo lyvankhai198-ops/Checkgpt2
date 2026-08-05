@@ -10,6 +10,12 @@ export const settingsTable = pgTable("settings", {
   defaultMaxConcurrent: integer("default_max_concurrent").default(1),
   notifyExpiryDays: integer("notify_expiry_days").default(3),
   welcomeMessage: text("welcome_message"),
+  // Pricing (VND)
+  basicPrice: integer("basic_price").default(20000),
+  proPrice: integer("pro_price").default(99000),
+  // Auto-stock targets
+  basicStockTarget: integer("basic_stock_target").default(50),
+  proStockTarget: integer("pro_stock_target").default(20),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

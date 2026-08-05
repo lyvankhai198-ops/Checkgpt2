@@ -301,6 +301,14 @@ export interface SystemSettings {
   /** @nullable */
   welcomeMessage?: string | null;
   /** @nullable */
+  basicPrice?: number | null;
+  /** @nullable */
+  proPrice?: number | null;
+  /** @nullable */
+  basicStockTarget?: number | null;
+  /** @nullable */
+  proStockTarget?: number | null;
+  /** @nullable */
   updatedAt?: string | null;
 }
 
@@ -319,6 +327,39 @@ export interface SettingsInput {
   defaultMaxConcurrent?: number;
   notifyExpiryDays?: number;
   welcomeMessage?: string;
+  basicPrice?: number;
+  proPrice?: number;
+  basicStockTarget?: number;
+  proStockTarget?: number;
+}
+
+export interface PricesResponse {
+  basicPrice: number;
+  proPrice: number;
+  basicPriceFormatted: string;
+  proPriceFormatted: string;
+  basicStockTarget?: number;
+  proStockTarget?: number;
+}
+
+export type AutoStockInputPlan = typeof AutoStockInputPlan[keyof typeof AutoStockInputPlan];
+
+
+export const AutoStockInputPlan = {
+  basic: 'basic',
+  pro: 'pro',
+} as const;
+
+export interface AutoStockInput {
+  plan: AutoStockInputPlan;
+}
+
+export interface AutoStockResult {
+  created: number;
+  available: number;
+  target: number;
+  newAvailable?: number;
+  message?: string;
 }
 
 export type ListKeysParams = {

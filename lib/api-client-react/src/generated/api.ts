@@ -24,6 +24,8 @@ import type {
   AdminProfile,
   AdminSession,
   AuditLogPage,
+  AutoStockInput,
+  AutoStockResult,
   BatchKeys,
   CheckInput,
   CheckResult,
@@ -39,6 +41,7 @@ import type {
   ListUsageLogsParams,
   ListUsersParams,
   OkResult,
+  PricesResponse,
   ResetUserTrial200,
   SettingsEnvelope,
   SettingsInput,
@@ -1439,6 +1442,154 @@ export function useListAuditLogs<TData = Awaited<ReturnType<typeof listAuditLogs
 
 
 
+
+export const getGetPricesUrl = () => {
+
+
+
+
+  return `/api/prices`
+}
+
+/**
+ * @summary Get current plan prices (no auth required)
+ */
+export const getPrices = async ( options?: Parameters<typeof customFetch>[1]): Promise<PricesResponse> => {
+
+  return customFetch<PricesResponse>(getGetPricesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPricesQueryKey = () => {
+    return [
+    `/api/prices`
+    ] as const;
+    }
+
+
+export const getGetPricesQueryOptions = <TData = Awaited<ReturnType<typeof getPrices>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPrices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPricesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrices>>> = ({ signal }) => getPrices({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPrices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPricesQueryResult = NonNullable<Awaited<ReturnType<typeof getPrices>>>
+export type GetPricesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get current plan prices (no auth required)
+ */
+
+export function useGetPrices<TData = Awaited<ReturnType<typeof getPrices>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPrices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPricesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAutoStockUrl = () => {
+
+
+
+
+  return `/api/admin/inventory/auto-stock`
+}
+
+/**
+ * @summary Auto-create keys to reach the stock target for a plan
+ */
+export const autoStock = async (autoStockInput: AutoStockInput, options?: Parameters<typeof customFetch>[1]): Promise<AutoStockResult> => {
+
+  return customFetch<AutoStockResult>(getAutoStockUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(autoStockInput)
+  }
+);}
+
+
+
+
+
+export const getAutoStockMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof autoStock>>, TError,{data: BodyType<AutoStockInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof autoStock>>, TError,{data: BodyType<AutoStockInput>}, TContext> => {
+
+const mutationKey = ['autoStock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof autoStock>>, {data: BodyType<AutoStockInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  autoStock(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AutoStockMutationResult = NonNullable<Awaited<ReturnType<typeof autoStock>>>
+    export type AutoStockMutationBody = BodyType<AutoStockInput>
+    export type AutoStockMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Auto-create keys to reach the stock target for a plan
+ */
+export const useAutoStock = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof autoStock>>, TError,{data: BodyType<AutoStockInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof autoStock>>,
+        TError,
+        {data: BodyType<AutoStockInput>},
+        TContext
+      > => {
+      return useMutation(getAutoStockMutationOptions(options));
+    }
 
 export const getGetSettingsUrl = () => {
 

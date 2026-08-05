@@ -1,7 +1,7 @@
 import { Telegraf, Markup, type Context } from "telegraf";
 import {
   checkTrial, useTrial, validateKey, activateKey,
-  useKey, releaseKey, checkSingle, checkBulk,
+  useKey, releaseKey, checkSingle, checkBulk, getPrices,
   type CheckResult,
 } from "./api.js";
 import {
@@ -226,7 +226,7 @@ async function handleCredentialInput(ctx: Context, raw: string) {
       const line = credToLine(valid[0]);
       const thinkMsg = await ctx.reply("⏳ Đang kiểm tra...");
       const result = await checkSingle("account", line);
-      await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
+      await ctx.telegram.deleteMessage(ctx.chat!.id, thinkMsg.message_id).catch(() => {});
       await ctx.replyWithHTML(formatResult(result));
     } else if (access.mode === "trial") {
       // Trial cannot use bulk at all
@@ -542,23 +542,23 @@ export function createBot(token: string): Telegraf {
 
   // ── Buy key flow ─────────────────────────────────────────────────────────────
 
-  const planKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback("🟢 Basic  —  20.000đ", "plan_basic")],
-    [Markup.button.callback("🟣 Pro  —  99.000đ",   "plan_pro")],
-  ]);
-
   bot.action("buy_key", async (ctx) => {
     await ctx.answerCbQuery();
+    const p = await getPrices();
     await ctx.replyWithHTML(
       "🛒 <b>Chọn gói phù hợp với bạn:</b>",
-      planKeyboard
+      Markup.inlineKeyboard([
+        [Markup.button.callback(`🟢 Basic  —  ${p.basicPriceFormatted}`, "plan_basic")],
+        [Markup.button.callback(`🟣 Pro  —  ${p.proPriceFormatted}`,     "plan_pro")],
+      ])
     );
   });
 
   bot.action("plan_basic", async (ctx) => {
     await ctx.answerCbQuery();
+    const p = await getPrices();
     await ctx.replyWithHTML(
-      "🟢 <b>Gói Basic — 20.000đ</b>\n\n" +
+      `🟢 <b>Gói Basic — ${p.basicPriceFormatted}</b>\n\n` +
       "⏱ Thời hạn: <b>1 ngày</b> kể từ lúc kích hoạt\n" +
       "🔢 Tổng lượt: <b>20 lượt</b>\n" +
       "📌 Mỗi lần check 1 tài khoản trừ 1 lượt\n" +
@@ -575,8 +575,9 @@ export function createBot(token: string): Telegraf {
 
   bot.action("plan_pro", async (ctx) => {
     await ctx.answerCbQuery();
+    const p = await getPrices();
     await ctx.replyWithHTML(
-      "🟣 <b>Gói Pro — 99.000đ</b>\n\n" +
+      `🟣 <b>Gói Pro — ${p.proPriceFormatted}</b>\n\n` +
       "⏱ Thời hạn: <b>30 ngày</b> kể từ lúc kích hoạt\n" +
       "🔢 Tổng lượt: <b>30 lần gửi</b>\n" +
       "📌 Mỗi lần gửi 1–10 tài khoản chỉ trừ <b>1 lượt</b>\n" +
@@ -593,8 +594,9 @@ export function createBot(token: string): Telegraf {
 
   bot.action("buy_basic", async (ctx) => {
     await ctx.answerCbQuery();
+    const p = await getPrices();
     await ctx.replyWithHTML(
-      "💳 <b>Mua gói Basic — 20.000đ</b>\n\n" +
+      `💳 <b>Mua gói Basic — ${p.basicPriceFormatted}</b>\n\n` +
       "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
       "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
       "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
@@ -603,8 +605,9 @@ export function createBot(token: string): Telegraf {
 
   bot.action("buy_pro", async (ctx) => {
     await ctx.answerCbQuery();
+    const p = await getPrices();
     await ctx.replyWithHTML(
-      "💳 <b>Mua gói Pro — 99.000đ</b>\n\n" +
+      `💳 <b>Mua gói Pro — ${p.proPriceFormatted}</b>\n\n` +
       "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
       "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
       "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
@@ -680,7 +683,7 @@ export function createBot(token: string): Telegraf {
         username: ctx.from.username,
         firstName: ctx.from.first_name,
       });
-      await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
+      await ctx.telegram.deleteMessage(ctx.chat!.id, thinkMsg.message_id).catch(() => {});
 
       if (result.success) {
         setSession(uid, { activeKey: key });

@@ -20,6 +20,31 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// ─── Prices ───────────────────────────────────────────────────────────────────
+
+export interface PricesResponse {
+  basicPrice: number;
+  proPrice: number;
+  basicPriceFormatted: string;
+  proPriceFormatted: string;
+}
+
+let _pricesCache: PricesResponse | null = null;
+let _pricesCacheAt = 0;
+const PRICES_TTL = 5 * 60 * 1000; // 5 minutes
+
+export async function getPrices(): Promise<PricesResponse> {
+  if (_pricesCache && Date.now() - _pricesCacheAt < PRICES_TTL) return _pricesCache;
+  try {
+    const data = await get<PricesResponse>("/api/prices");
+    _pricesCache = data;
+    _pricesCacheAt = Date.now();
+    return data;
+  } catch {
+    return _pricesCache ?? { basicPrice: 20000, proPrice: 99000, basicPriceFormatted: "20.000đ", proPriceFormatted: "99.000đ" };
+  }
+}
+
 // ─── Trial ────────────────────────────────────────────────────────────────────
 
 export interface TrialStatus {

@@ -331,6 +331,7 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
   const {
     telegramBotToken, timezone, defaultDurationMinutes, defaultMaxUses,
     defaultDailyLimit, defaultMaxConcurrent, notifyExpiryDays, welcomeMessage,
+    basicPrice, proPrice, basicStockTarget, proStockTarget,
   } = req.body ?? {};
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -342,6 +343,10 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
   if (defaultMaxConcurrent !== undefined) updates.defaultMaxConcurrent = Number(defaultMaxConcurrent);
   if (notifyExpiryDays !== undefined) updates.notifyExpiryDays = Number(notifyExpiryDays);
   if (welcomeMessage !== undefined) updates.welcomeMessage = welcomeMessage;
+  if (basicPrice !== undefined) updates.basicPrice = Number(basicPrice);
+  if (proPrice !== undefined) updates.proPrice = Number(proPrice);
+  if (basicStockTarget !== undefined) updates.basicStockTarget = Number(basicStockTarget);
+  if (proStockTarget !== undefined) updates.proStockTarget = Number(proStockTarget);
 
   const upsertValues: InsertSettings = { id: 1, updatedAt: new Date() };
   Object.assign(upsertValues, updates);
@@ -358,6 +363,76 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
   });
 
   res.json({ ok: true });
+});
+
+// ── Public prices endpoint (no auth — bot reads this) ────────────────────────
+router.get("/prices", async (_req, res): Promise<void> => {
+  const [settings] = await db.select({
+    basicPrice: settingsTable.basicPrice,
+    proPrice: settingsTable.proPrice,
+    basicStockTarget: settingsTable.basicStockTarget,
+    proStockTarget: settingsTable.proStockTarget,
+  }).from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
+
+  const basicPrice = settings?.basicPrice ?? 20000;
+  const proPrice = settings?.proPrice ?? 99000;
+
+  const fmt = (v: number) => v.toLocaleString("vi-VN") + "đ";
+
+  res.json({
+    basicPrice,
+    proPrice,
+    basicPriceFormatted: fmt(basicPrice),
+    proPriceFormatted: fmt(proPrice),
+    basicStockTarget: settings?.basicStockTarget ?? 50,
+    proStockTarget: settings?.proStockTarget ?? 20,
+  });
+});
+
+// ── Auto-stock endpoint ───────────────────────────────────────────────────────
+router.post("/admin/inventory/auto-stock", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const { plan } = req.body ?? {};
+  if (!["basic", "pro"].includes(plan)) {
+    res.status(400).json({ error: "plan must be basic or pro" });
+    return;
+  }
+
+  const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
+  const target = plan === "basic"
+    ? (settings?.basicStockTarget ?? 50)
+    : (settings?.proStockTarget ?? 20);
+
+  // Count current available keys for this plan (inactive = unactivated)
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(licenseKeysTable)
+    .where(and(eq(licenseKeysTable.plan, plan as "basic" | "pro"), eq(licenseKeysTable.status, "inactive")));
+
+  const available = Number(count);
+  const needed = Math.max(0, target - available);
+
+  if (needed === 0) {
+    res.json({ created: 0, available, target, message: "Kho đã đủ số lượng mục tiêu." });
+    return;
+  }
+
+  const planPresets = {
+    basic: { durationMinutes: undefined, neverExpires: true, maxTotalUses: 20, maxConcurrent: 1, note: "Gói Basic" },
+    pro:   { durationMinutes: undefined, neverExpires: true, maxTotalUses: 30, maxConcurrent: 10, note: "Gói Pro" },
+  } as const;
+
+  const preset = planPresets[plan as "basic" | "pro"];
+  const created = await createKeys({ ...preset, plan: plan as "basic" | "pro", count: needed });
+
+  await logAudit({
+    adminId: req.admin!.adminId,
+    action: "auto_stock",
+    targetType: "key",
+    details: { plan, created: created.length, target },
+    ipAddress: req.ip,
+  });
+
+  res.json({ created: created.length, available, target, newAvailable: available + created.length });
 });
 
 export default router;
