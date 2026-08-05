@@ -101,6 +101,17 @@ export const LicenseKeyStatus = {
   expired: 'expired',
 } as const;
 
+/**
+ * @nullable
+ */
+export type LicenseKeyPlan = typeof LicenseKeyPlan[keyof typeof LicenseKeyPlan] | null;
+
+
+export const LicenseKeyPlan = {
+  basic: 'basic',
+  pro: 'pro',
+} as const;
+
 export interface LicenseKey {
   id: number;
   keyDisplay: string;
@@ -120,6 +131,8 @@ export interface LicenseKey {
   lockToTelegram?: boolean;
   /** @nullable */
   note?: string | null;
+  /** @nullable */
+  plan?: LicenseKeyPlan;
   createdAt: string;
   updatedAt: string;
 }
@@ -134,6 +147,17 @@ export interface KeyPage {
 export interface KeyDetail {
   key: LicenseKey;
 }
+
+/**
+ * @nullable
+ */
+export type CreateKeysInputPlan = typeof CreateKeysInputPlan[keyof typeof CreateKeysInputPlan] | null;
+
+
+export const CreateKeysInputPlan = {
+  basic: 'basic',
+  pro: 'pro',
+} as const;
 
 export interface CreateKeysInput {
   count?: number;
@@ -150,6 +174,8 @@ export interface CreateKeysInput {
   lockToTelegram?: boolean;
   /** @nullable */
   note?: string | null;
+  /** @nullable */
+  plan?: CreateKeysInputPlan;
 }
 
 export interface NewKeyRecord {
@@ -178,6 +204,18 @@ export interface KeyUpdateInput {
   extraMinutes?: number;
   expiresAt?: string;
   note?: string;
+}
+
+export interface InventoryPlanStats {
+  total: number;
+  available: number;
+  sold: number;
+  revoked: number;
+}
+
+export interface InventoryStats {
+  basic: InventoryPlanStats;
+  pro: InventoryPlanStats;
 }
 
 export interface TelegramUser {

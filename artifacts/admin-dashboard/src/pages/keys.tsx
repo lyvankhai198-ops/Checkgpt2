@@ -6,7 +6,9 @@ import {
   useCreateKeys,
   useUpdateKey,
   useExportKeysCsv,
-  getExportKeysCsvUrl
+  getExportKeysCsvUrl,
+  useGetInventory,
+  getGetInventoryQueryKey,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -47,8 +49,13 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Download, MoreHorizontal, Plus, Search, ShieldOff, ShieldAlert, Key as KeyIcon, CheckCircle2, Copy } from "lucide-react";
+import { Download, MoreHorizontal, Plus, Search, ShieldOff, ShieldAlert, Key as KeyIcon, CheckCircle2, Copy, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const PLAN_PRESETS = {
+  basic: { durationMinutes: 1440, maxTotalUses: 20, maxConcurrent: 1, neverExpires: false, note: "Gói Basic" },
+  pro:   { durationMinutes: 43200, maxTotalUses: 30, maxConcurrent: 10, neverExpires: false, note: "Gói Pro" },
+} as const;
 
 const createKeySchema = z.object({
   count: z.coerce.number().min(1).max(100).default(1),
@@ -60,6 +67,7 @@ const createKeySchema = z.object({
   allowedTelegramId: z.string().optional(),
   lockToTelegram: z.boolean().default(false),
   note: z.string().optional(),
+  plan: z.enum(["basic", "pro"]).optional(),
 });
 
 export default function Keys() {
@@ -71,14 +79,25 @@ export default function Keys() {
   const [status, setStatus] = useState<string>("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createdKeys, setCreatedKeys] = useState<{rawKey: string, keyDisplay: string}[] | null>(null);
+  const [planFilter, setPlanFilter] = useState<string>("all");
 
   const { data, isLoading } = useListKeys(
     { page, limit, search: search || undefined, status: status !== "all" ? status : undefined },
     { query: { queryKey: getListKeysQueryKey({ page, limit, search: search || undefined, status: status !== "all" ? status : undefined }) } }
   );
 
+  const { data: inventory } = useGetInventory({
+    query: { queryKey: getGetInventoryQueryKey(), refetchInterval: 30_000 },
+  });
+
   const createMutation = useCreateKeys();
   const updateMutation = useUpdateKey();
+
+  const openQuickCreate = (plan: "basic" | "pro") => {
+    const preset = PLAN_PRESETS[plan];
+    form.reset({ count: 1, ...preset, plan, dailyLimit: undefined, allowedTelegramId: undefined, lockToTelegram: false });
+    setIsCreateOpen(true);
+  };
 
   const form = useForm<z.infer<typeof createKeySchema>>({
     resolver: zodResolver(createKeySchema),
@@ -149,14 +168,20 @@ export default function Keys() {
           <h1 className="text-3xl font-bold tracking-tight">Quản lý Key</h1>
           <p className="text-muted-foreground mt-1">Quản lý và cấp phát Key truy cập.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" /> Xuất CSV
+          </Button>
+          <Button variant="outline" className="border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10" onClick={() => openQuickCreate("basic")}>
+            <Package className="mr-2 h-4 w-4" /> Tạo Key Basic
+          </Button>
+          <Button variant="outline" className="border-purple-500/40 text-purple-400 hover:bg-purple-500/10" onClick={() => openQuickCreate("pro")}>
+            <Package className="mr-2 h-4 w-4" /> Tạo Key Pro
           </Button>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="mr-2 h-4 w-4" /> Tạo mới
+                <Plus className="mr-2 h-4 w-4" /> Tạo tuỳ chỉnh
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
@@ -261,6 +286,29 @@ export default function Keys() {
                   
                   <FormField
                     control={form.control}
+                    name="plan"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Gói</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                          <FormControl>
+                            <SelectTrigger className="bg-background">
+                              <SelectValue placeholder="Tuỳ chỉnh (không gán gói)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="">Tuỳ chỉnh</SelectItem>
+                            <SelectItem value="basic">🟢 Basic</SelectItem>
+                            <SelectItem value="pro">🟣 Pro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
                     name="note"
                     render={({ field }) => (
                       <FormItem>
@@ -283,6 +331,40 @@ export default function Keys() {
             </DialogContent>
           </Dialog>
         </div>
+      </div>
+
+      {/* ── Inventory cards ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-4">
+        {(["basic", "pro"] as const).map((plan) => {
+          const inv = inventory?.[plan];
+          const isBasic = plan === "basic";
+          return (
+            <Card key={plan} className={`border ${isBasic ? "border-emerald-500/20" : "border-purple-500/20"}`}>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className={`text-sm font-medium flex items-center gap-2 ${isBasic ? "text-emerald-400" : "text-purple-400"}`}>
+                  <Package className="h-4 w-4" />
+                  Kho {isBasic ? "🟢 Basic" : "🟣 Pro"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                  <div>
+                    <div className="text-2xl font-bold">{inv?.available ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">Còn lại</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-muted-foreground">{inv?.sold ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">Đã bán</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-muted-foreground">{inv?.total ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">Tổng</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card>
@@ -309,6 +391,17 @@ export default function Keys() {
                 <SelectItem value="revoked">Đã thu hồi</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={planFilter} onValueChange={setPlanFilter}>
+              <SelectTrigger className="w-full sm:w-[160px] bg-background">
+                <SelectValue placeholder="Lọc theo gói" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả gói</SelectItem>
+                <SelectItem value="basic">🟢 Basic</SelectItem>
+                <SelectItem value="pro">🟣 Pro</SelectItem>
+                <SelectItem value="custom">Tuỳ chỉnh</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="relative w-full overflow-auto">
@@ -316,6 +409,7 @@ export default function Keys() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Key</TableHead>
+                  <TableHead>Gói</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead>Sử dụng</TableHead>
                   <TableHead>Đồng thời</TableHead>
@@ -333,7 +427,9 @@ export default function Keys() {
                     <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Không có dữ liệu</TableCell>
                   </TableRow>
                 ) : (
-                  data?.keys.map((key) => (
+                  data?.keys
+                    .filter(key => planFilter === "all" || (planFilter === "custom" ? !key.plan : key.plan === planFilter))
+                    .map((key) => (
                     <TableRow key={key.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -345,6 +441,17 @@ export default function Keys() {
                           </Button>
                         </div>
                         {key.note && <div className="text-xs text-muted-foreground mt-1">{key.note}</div>}
+                      </TableCell>
+                      <TableCell>
+                        {key.plan === "basic" && (
+                          <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 text-xs">🟢 Basic</Badge>
+                        )}
+                        {key.plan === "pro" && (
+                          <Badge variant="outline" className="border-purple-500/40 text-purple-400 text-xs">🟣 Pro</Badge>
+                        )}
+                        {!key.plan && (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge

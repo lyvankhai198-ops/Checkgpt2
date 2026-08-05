@@ -117,7 +117,7 @@ router.post("/admin/keys", adminAuthMiddleware, async (req, res): Promise<void> 
     count = 1,
     durationMinutes, expiresAt: expiresAtRaw, neverExpires,
     maxTotalUses, dailyLimit, maxConcurrent, allowedTelegramId,
-    maxDevices, lockToTelegram, note,
+    maxDevices, lockToTelegram, note, plan,
   } = req.body ?? {};
 
   const opts = {
@@ -132,6 +132,7 @@ router.post("/admin/keys", adminAuthMiddleware, async (req, res): Promise<void> 
     maxDevices: maxDevices ? Number(maxDevices) : 1,
     lockToTelegram: Boolean(lockToTelegram),
     note: note || undefined,
+    plan: ["basic", "pro"].includes(plan) ? plan as "basic" | "pro" : undefined,
   };
 
   const created = await createKeys(opts);
@@ -223,6 +224,37 @@ router.get("/admin/keys/export/csv", adminAuthMiddleware, async (_req, res): Pro
 });
 
 // ─── Users ────────────────────────────────────────────────────────────────────
+
+// ── Inventory ────────────────────────────────────────────────────────────────
+
+router.get("/admin/inventory", adminAuthMiddleware, async (_req, res): Promise<void> => {
+  const plans = ["basic", "pro"] as const;
+  const result: Record<string, { total: number; available: number; sold: number; revoked: number }> = {};
+
+  for (const plan of plans) {
+    const [rows] = await Promise.all([
+      db.select({
+        status: licenseKeysTable.status,
+        count: sql<number>`count(*)`,
+      })
+        .from(licenseKeysTable)
+        .where(eq(licenseKeysTable.plan, plan))
+        .groupBy(licenseKeysTable.status),
+    ]);
+
+    const byStatus: Record<string, number> = {};
+    for (const row of rows) byStatus[row.status] = Number(row.count);
+
+    result[plan] = {
+      total: Object.values(byStatus).reduce((s, v) => s + v, 0),
+      available: (byStatus["inactive"] ?? 0),  // inactive = created but not yet activated
+      sold: (byStatus["active"] ?? 0) + (byStatus["expired"] ?? 0),
+      revoked: byStatus["revoked"] ?? 0,
+    };
+  }
+
+  res.json({ basic: result.basic ?? { total: 0, available: 0, sold: 0, revoked: 0 }, pro: result.pro ?? { total: 0, available: 0, sold: 0, revoked: 0 } });
+});
 
 router.post("/admin/users/:telegramId/reset-trial", adminAuthMiddleware, async (req, res): Promise<void> => {
   const { telegramId } = req.params;

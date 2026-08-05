@@ -267,6 +267,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserPage"
 
+  /admin/inventory:
+    get:
+      operationId: getInventory
+      tags: [admin]
+      summary: Get key inventory counts grouped by plan
+      responses:
+        "200":
+          description: Inventory counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryStats"
+
   /admin/users/{telegramId}/reset-trial:
     post:
       operationId: resetUserTrial
@@ -483,6 +496,9 @@ components:
         allowedTelegramId: { type: ["string", "null"] }
         lockToTelegram: { type: boolean }
         note: { type: ["string", "null"] }
+        plan:
+          type: ["string", "null"]
+          enum: ["basic", "pro", null]
         createdAt: { type: string }
         updatedAt: { type: string }
 
@@ -517,6 +533,9 @@ components:
         allowedTelegramId: { type: ["string", "null"] }
         lockToTelegram: { type: boolean }
         note: { type: ["string", "null"] }
+        plan:
+          type: ["string", "null"]
+          enum: ["basic", "pro", null]
 
     NewKeyRecord:
       type: object
@@ -544,6 +563,24 @@ components:
         extraMinutes: { type: number }
         expiresAt: { type: string }
         note: { type: string }
+
+    InventoryPlanStats:
+      type: object
+      required: [total, available, sold, revoked]
+      properties:
+        total: { type: number }
+        available: { type: number }
+        sold: { type: number }
+        revoked: { type: number }
+
+    InventoryStats:
+      type: object
+      required: [basic, pro]
+      properties:
+        basic:
+          $ref: "#/components/schemas/InventoryPlanStats"
+        pro:
+          $ref: "#/components/schemas/InventoryPlanStats"
 
     # ── Users ─────────────────────────────────────────────────────────────────────
 

@@ -132,6 +132,7 @@ export const ListKeysResponse = zod.object({
   "allowedTelegramId": zod.string().nullish(),
   "lockToTelegram": zod.boolean().optional(),
   "note": zod.string().nullish(),
+  "plan": zod.union([zod.literal('basic'),zod.literal('pro'),zod.literal(null)]).nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })),
@@ -153,7 +154,8 @@ export const CreateKeysBody = zod.object({
   "maxConcurrent": zod.number().optional(),
   "allowedTelegramId": zod.string().nullish(),
   "lockToTelegram": zod.boolean().optional(),
-  "note": zod.string().nullish()
+  "note": zod.string().nullish(),
+  "plan": zod.union([zod.literal('basic'),zod.literal('pro'),zod.literal(null)]).nullish()
 })
 
 export const CreateKeysResponse = zod.object({
@@ -187,6 +189,7 @@ export const GetKeyResponse = zod.object({
   "allowedTelegramId": zod.string().nullish(),
   "lockToTelegram": zod.boolean().optional(),
   "note": zod.string().nullish(),
+  "plan": zod.union([zod.literal('basic'),zod.literal('pro'),zod.literal(null)]).nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -222,6 +225,7 @@ export const UpdateKeyResponse = zod.object({
   "allowedTelegramId": zod.string().nullish(),
   "lockToTelegram": zod.boolean().optional(),
   "note": zod.string().nullish(),
+  "plan": zod.union([zod.literal('basic'),zod.literal('pro'),zod.literal(null)]).nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -262,6 +266,25 @@ export const ListUsersResponse = zod.object({
   "total": zod.number(),
   "page": zod.number(),
   "limit": zod.number()
+})
+
+
+/**
+ * @summary Get key inventory counts grouped by plan
+ */
+export const GetInventoryResponse = zod.object({
+  "basic": zod.object({
+  "total": zod.number(),
+  "available": zod.number(),
+  "sold": zod.number(),
+  "revoked": zod.number()
+}),
+  "pro": zod.object({
+  "total": zod.number(),
+  "available": zod.number(),
+  "sold": zod.number(),
+  "revoked": zod.number()
+})
 })
 
 

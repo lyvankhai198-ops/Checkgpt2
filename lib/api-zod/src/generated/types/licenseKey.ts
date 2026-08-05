@@ -5,6 +5,7 @@
  * ChatGPT Account Checker API
  * OpenAPI spec version: 0.1.0
  */
+import type { LicenseKeyPlan } from './licenseKeyPlan';
 import type { LicenseKeyStatus } from './licenseKeyStatus';
 
 export interface LicenseKey {
@@ -26,6 +27,8 @@ export interface LicenseKey {
   lockToTelegram?: boolean;
   /** @nullable */
   note?: string | null;
+  /** @nullable */
+  plan?: LicenseKeyPlan;
   createdAt: string;
   updatedAt: string;
 }

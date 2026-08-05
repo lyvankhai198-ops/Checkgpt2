@@ -68,6 +68,7 @@ export interface CreateKeyOptions {
   maxDevices?: number;
   lockToTelegram?: boolean;
   note?: string;
+  plan?: "basic" | "pro";     // plan tag for inventory management
   count?: number;             // batch create N keys
 }
 
@@ -109,6 +110,7 @@ export async function createKeys(opts: CreateKeyOptions = {}): Promise<CreatedKe
         maxDevices: opts.maxDevices ?? 1,
         lockToTelegram: opts.lockToTelegram ?? false,
         note: opts.note ?? null,
+        plan: opts.plan ?? null,
       } satisfies Omit<InsertLicenseKey, "status"> & { status: "inactive" })
       .returning();
 
