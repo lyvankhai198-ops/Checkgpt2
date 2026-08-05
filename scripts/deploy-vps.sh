@@ -32,7 +32,7 @@ export $(grep -v '^#' .env | xargs)
 pnpm --filter @workspace/db run push 2>&1 | tail -3
 
 echo "🔄 Restarting PM2..."
-pm2 restart all --update-env
+pm2 reload all --update-env
 pm2 status
 
 echo "✅ Deploy hoàn tất!"
