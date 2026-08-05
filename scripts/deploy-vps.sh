@@ -21,9 +21,11 @@ pnpm install --frozen-lockfile 2>&1 | tail -3
 echo "🔨 Building..."
 pnpm --filter @workspace/api-server run build 2>&1 | tail -3
 pnpm --filter @workspace/telegram-bot run build 2>&1 | tail -3
-PORT=3002 BASE_PATH=/ NODE_ENV=production \
+PORT=3002 BASE_PATH=/checkgpt-admin/ \
+  VITE_API_BASE_URL=http://103.180.138.203:3001 \
+  NODE_ENV=production \
   pnpm --filter @workspace/admin-dashboard run build 2>&1 | tail -3
-cp -r artifacts/admin-dashboard/dist/public/* /var/www/admin/
+cp -r artifacts/admin-dashboard/dist/public/* /var/www/checkgpt-admin/
 
 echo "🗄️ DB migrations..."
 export $(grep -v '^#' .env | xargs)
