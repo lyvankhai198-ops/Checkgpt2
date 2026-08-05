@@ -53,11 +53,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Download, MoreHorizontal, Plus, Search, ShieldOff, ShieldAlert, Key as KeyIcon, CheckCircle2, Copy, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const PLAN_PRESETS = {
-  basic: { durationMinutes: 1440, maxTotalUses: 20, maxConcurrent: 1, neverExpires: false, note: "Gói Basic" },
-  pro:   { durationMinutes: 43200, maxTotalUses: 30, maxConcurrent: 10, neverExpires: false, note: "Gói Pro" },
-} as const;
-
 const createKeySchema = z.object({
   count: z.coerce.number().min(1).max(100).default(1),
   durationMinutes: z.coerce.number().optional(),
@@ -112,12 +107,6 @@ export default function Keys() {
         onError: () => toast({ title: "Lỗi", description: "Không thể bổ sung kho.", variant: "destructive" }),
       }
     );
-  };
-
-  const openQuickCreate = (plan: "basic" | "pro") => {
-    const preset = PLAN_PRESETS[plan];
-    form.reset({ count: 1, ...preset, plan, dailyLimit: undefined, allowedTelegramId: undefined, lockToTelegram: false });
-    setIsCreateOpen(true);
   };
 
   const form = useForm<z.infer<typeof createKeySchema>>({
@@ -208,12 +197,6 @@ export default function Keys() {
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" /> Xuất CSV
-          </Button>
-          <Button variant="outline" className="border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10" onClick={() => openQuickCreate("basic")}>
-            <Package className="mr-2 h-4 w-4" /> Tạo Key Basic
-          </Button>
-          <Button variant="outline" className="border-purple-500/40 text-purple-400 hover:bg-purple-500/10" onClick={() => openQuickCreate("pro")}>
-            <Package className="mr-2 h-4 w-4" /> Tạo Key Pro
           </Button>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
