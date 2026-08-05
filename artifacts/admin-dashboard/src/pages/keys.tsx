@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   useListKeys,
   getListKeysQueryKey,
@@ -10,6 +10,7 @@ import {
   useGetInventory,
   getGetInventoryQueryKey,
   useAutoStock,
+  useDeleteAllKeys,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Download, MoreHorizontal, Plus, Search, ShieldOff, ShieldAlert, Key as KeyIcon, CheckCircle2, Copy, Package } from "lucide-react";
+import { Download, MoreHorizontal, Plus, Search, ShieldOff, ShieldAlert, Key as KeyIcon, CheckCircle2, Copy, Package, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const createKeySchema = z.object({
@@ -77,6 +78,8 @@ export default function Keys() {
   const [createdKeys, setCreatedKeys] = useState<{rawKey: string, keyDisplay: string}[] | null>(null);
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [autoStockResult, setAutoStockResult] = useState<{ plan: string; keys: { id?: number; key?: string; display?: string }[] } | null>(null);
+  const [deleteScope, setDeleteScope] = useState<"expired_revoked" | "expired" | "revoked" | "inactive" | "all">("expired_revoked");
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const { data, isLoading } = useListKeys(
     { page, limit, search: search || undefined, status: status !== "all" ? status : undefined },
@@ -90,6 +93,17 @@ export default function Keys() {
   const createMutation = useCreateKeys();
   const updateMutation = useUpdateKey();
   const autoStockMutation = useAutoStock();
+  const deleteAllFn = useDeleteAllKeys();
+  const deleteAllMutation = useMutation({
+    mutationFn: () => deleteAllFn(deleteScope),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: getListKeysQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetInventoryQueryKey() });
+      setIsDeleteOpen(false);
+      toast({ title: `✅ Đã xoá ${res.deleted} key` });
+    },
+    onError: () => toast({ title: "❌ Lỗi xoá key", variant: "destructive" }),
+  });
 
   const handleAutoStock = (plan: "basic" | "pro") => {
     autoStockMutation.mutate(
@@ -197,6 +211,13 @@ export default function Keys() {
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" /> Xuất CSV
+          </Button>
+          <Button
+            variant="outline"
+            className="border-red-500/40 text-red-400 hover:bg-red-500/10"
+            onClick={() => setIsDeleteOpen(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Xoá key
           </Button>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
@@ -385,6 +406,61 @@ export default function Keys() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ── Delete All Dialog ───────────────────────────────────────── */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-red-400 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Xoá key hàng loạt
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">Chọn nhóm key cần xoá:</p>
+            {(
+              [
+                { value: "expired_revoked", label: "🧹 Hết hạn + Đã thu hồi", desc: "Dọn dẹp key cũ không dùng nữa" },
+                { value: "expired",         label: "⚫ Hết hạn",               desc: "Chỉ xoá key đã hết hạn" },
+                { value: "revoked",         label: "🔴 Đã thu hồi",            desc: "Chỉ xoá key đã bị thu hồi" },
+                { value: "inactive",        label: "🔵 Sẵn sàng (chưa dùng)", desc: "Xoá key mới chưa kích hoạt" },
+                { value: "all",             label: "☠️ TẤT CẢ key",           desc: "⚠️ Xoá toàn bộ — không thể hoàn tác!" },
+              ] as const
+            ).map((opt) => (
+              <label
+                key={opt.value}
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  deleteScope === opt.value
+                    ? "border-red-500/60 bg-red-500/10"
+                    : "border-border hover:border-border/80 hover:bg-muted/30"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="deleteScope"
+                  value={opt.value}
+                  checked={deleteScope === opt.value}
+                  onChange={() => setDeleteScope(opt.value)}
+                  className="mt-0.5 accent-red-500"
+                />
+                <div>
+                  <p className="text-sm font-medium">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Huỷ</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteAllMutation.mutate()}
+              disabled={deleteAllMutation.isPending}
+            >
+              {deleteAllMutation.isPending ? "Đang xoá..." : "🗑️ Xoá ngay"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Inventory cards ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4">

@@ -16,6 +16,13 @@ export const useResetUserTrial = () => {
   });
 };
 
+// ─── Bulk delete keys ─────────────────────────────────────────────────────────
+
+export const useDeleteAllKeys = () => {
+  return (scope: "expired_revoked" | "expired" | "revoked" | "inactive" | "all") =>
+    customFetch(`/api/admin/keys?scope=${scope}`, { method: 'DELETE' }) as Promise<{ ok: boolean; deleted: number }>;
+};
+
 // ─── Plans ────────────────────────────────────────────────────────────────────
 
 export const useAdminGetPlans = () => {

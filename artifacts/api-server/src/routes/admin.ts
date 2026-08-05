@@ -211,6 +211,40 @@ router.delete("/admin/keys/:id", adminAuthMiddleware, async (req, res): Promise<
   res.json({ ok: true });
 });
 
+// Xoá hàng loạt key
+// DELETE /api/admin/keys?scope=all|expired|revoked|inactive
+router.delete("/admin/keys", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const scope = (req.query.scope as string) ?? "expired_revoked";
+
+  let whereClause;
+  if (scope === "all") {
+    whereClause = undefined; // xoá tất cả
+  } else if (scope === "expired") {
+    whereClause = eq(licenseKeysTable.status, "expired");
+  } else if (scope === "revoked") {
+    whereClause = eq(licenseKeysTable.status, "revoked");
+  } else if (scope === "inactive") {
+    whereClause = eq(licenseKeysTable.status, "inactive");
+  } else {
+    // mặc định: xoá expired + revoked
+    whereClause = sql`${licenseKeysTable.status} IN ('expired', 'revoked')`;
+  }
+
+  const deleted = whereClause
+    ? await db.delete(licenseKeysTable).where(whereClause).returning({ id: licenseKeysTable.id })
+    : await db.delete(licenseKeysTable).returning({ id: licenseKeysTable.id });
+
+  await logAudit({
+    adminId: req.admin!.adminId,
+    action: "bulk_delete_keys",
+    targetType: "key",
+    details: JSON.stringify({ scope, count: deleted.length }),
+    ipAddress: req.ip,
+  });
+
+  res.json({ ok: true, deleted: deleted.length });
+});
+
 // CSV export
 router.get("/admin/keys/export/csv", adminAuthMiddleware, async (_req, res): Promise<void> => {
   const keys = await db.select().from(licenseKeysTable).orderBy(desc(licenseKeysTable.createdAt));
