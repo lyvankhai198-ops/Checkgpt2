@@ -13,6 +13,7 @@ import {
   ordersTable, licenseKeysTable, settingsTable,
   type InsertOrder,
 } from "@workspace/db";
+import { logger as _logger } from "../lib/logger.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -106,7 +107,10 @@ router.post("/payment/orders", async (req, res): Promise<void> => {
 // ─── SePay webhook ───────────────────────────────────────────────────────────
 
 router.post("/payment/webhook", async (req, res): Promise<void> => {
-  const apiKey = process.env["SEPAY_API_KEY"];
+  // Read API key from settings (falls back to env var)
+  const [settingsRow] = await db.select({ sepayApiKey: settingsTable.sepayApiKey })
+    .from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
+  const apiKey = settingsRow?.sepayApiKey || process.env["SEPAY_API_KEY"];
 
   // Verify SePay sends Authorization: Apikey <key>
   const authHeader = req.headers["authorization"] ?? "";

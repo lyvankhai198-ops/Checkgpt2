@@ -43,5 +43,7 @@ export interface SystemSettings {
   /** @nullable */
   paymentEnabled?: number | null;
   /** @nullable */
+  sepayApiKey?: string | null;
+  /** @nullable */
   updatedAt?: string | null;
 }

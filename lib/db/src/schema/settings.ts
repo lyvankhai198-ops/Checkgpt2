@@ -22,6 +22,7 @@ export const settingsTable = pgTable("settings", {
   bankAccount: text("bank_account"),
   bankHolder: text("bank_holder"),
   paymentEnabled: integer("payment_enabled").default(0), // 0=off, 1=on (bool as int)
+  sepayApiKey: text("sepay_api_key"),                   // stored masked, like bot token
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

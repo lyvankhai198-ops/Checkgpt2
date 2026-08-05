@@ -467,6 +467,7 @@ export const GetSettingsResponse = zod.object({
   "bankAccount": zod.string().nullish(),
   "bankHolder": zod.string().nullish(),
   "paymentEnabled": zod.number().nullish(),
+  "sepayApiKey": zod.string().nullish(),
   "updatedAt": zod.string().nullish()
 }).optional()
 })
@@ -492,7 +493,8 @@ export const UpdateSettingsBody = zod.object({
   "bankBin": zod.string().optional(),
   "bankAccount": zod.string().optional(),
   "bankHolder": zod.string().optional(),
-  "paymentEnabled": zod.boolean().optional()
+  "paymentEnabled": zod.boolean().optional(),
+  "sepayApiKey": zod.string().optional()
 })
 
 export const UpdateSettingsResponse = zod.object({

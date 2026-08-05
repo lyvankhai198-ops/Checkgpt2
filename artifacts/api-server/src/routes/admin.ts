@@ -322,8 +322,12 @@ router.get("/admin/settings", adminAuthMiddleware, async (_req, res): Promise<vo
     res.json({ settings: null });
     return;
   }
-  // Never leak bot token in full
-  const safe = { ...settings, telegramBotToken: settings.telegramBotToken ? "***set***" : null };
+  // Never leak secrets in full
+  const safe = {
+    ...settings,
+    telegramBotToken: settings.telegramBotToken ? "***set***" : null,
+    sepayApiKey: settings.sepayApiKey ? "***set***" : null,
+  };
   res.json({ settings: safe });
 });
 
@@ -356,6 +360,9 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
   if (bankAccount !== undefined) updates.bankAccount = bankAccount;
   if (bankHolder !== undefined) updates.bankHolder = bankHolder;
   if (paymentEnabled !== undefined) updates.paymentEnabled = paymentEnabled ? 1 : 0;
+
+  const { sepayApiKey } = req.body ?? {};
+  if (sepayApiKey && sepayApiKey !== "***set***") updates.sepayApiKey = sepayApiKey;
 
   const upsertValues: InsertSettings = { id: 1, updatedAt: new Date() };
   Object.assign(upsertValues, updates);

@@ -26,4 +26,5 @@ export interface SettingsInput {
   bankAccount?: string;
   bankHolder?: string;
   paymentEnabled?: boolean;
+  sepayApiKey?: string;
 }

@@ -33,6 +33,7 @@ const settingsSchema = z.object({
   bankBin: z.string().optional(),
   bankAccount: z.string().optional(),
   bankHolder: z.string().optional(),
+  sepayApiKey: z.string().optional(),
 });
 
 export default function Settings() {
@@ -63,6 +64,7 @@ export default function Settings() {
       bankBin: "MB",
       bankAccount: "",
       bankHolder: "",
+      sepayApiKey: "",
     },
   });
 
@@ -86,6 +88,7 @@ export default function Settings() {
         bankBin: data.settings.bankBin ?? "MB",
         bankAccount: data.settings.bankAccount ?? "",
         bankHolder: data.settings.bankHolder ?? "",
+        sepayApiKey: data.settings.sepayApiKey ? "" : "", // always blank — masked server-side
       });
     }
   }, [data, form]);
@@ -321,10 +324,28 @@ export default function Settings() {
                   </FormItem>
                 )} />
               </div>
+              <FormField control={form.control} name="sepayApiKey" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>API Key SePay</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      placeholder="Nhập API Key từ dashboard SePay"
+                      className="bg-background font-mono"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">Để trống nếu chưa thay đổi (đang ẩn).</p>
+                  <FormMessage />
+                </FormItem>
+              )} />
               <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-400 space-y-1">
-                <div className="font-medium">⚙️ Cấu hình SePay Webhook:</div>
-                <div>URL webhook: <code className="bg-muted px-1 rounded">/api/payment/webhook</code></div>
-                <div>Thêm API Key SePay vào <strong>Replit Secrets</strong> với tên: <code className="bg-muted px-1 rounded">SEPAY_API_KEY</code></div>
+                <div className="font-medium">⚙️ Cấu hình webhook trên SePay dashboard:</div>
+                <div>URL webhook:</div>
+                <code className="block bg-muted px-2 py-1 rounded text-foreground select-all break-all">
+                  {window.location.origin.replace(/\/admin-dashboard.*/, "")}/api/payment/webhook
+                </code>
               </div>
             </CardContent>
           </Card>

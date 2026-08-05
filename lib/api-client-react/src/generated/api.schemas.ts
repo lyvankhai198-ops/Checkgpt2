@@ -319,6 +319,8 @@ export interface SystemSettings {
   /** @nullable */
   paymentEnabled?: number | null;
   /** @nullable */
+  sepayApiKey?: string | null;
+  /** @nullable */
   updatedAt?: string | null;
 }
 
@@ -346,6 +348,7 @@ export interface SettingsInput {
   bankAccount?: string;
   bankHolder?: string;
   paymentEnabled?: boolean;
+  sepayApiKey?: string;
 }
 
 export type CreateOrderInputPlan = typeof CreateOrderInputPlan[keyof typeof CreateOrderInputPlan];

@@ -765,6 +765,7 @@ components:
         bankAccount: { type: ["string", "null"] }
         bankHolder: { type: ["string", "null"] }
         paymentEnabled: { type: ["number", "null"] }
+        sepayApiKey: { type: ["string", "null"] }
         updatedAt: { type: ["string", "null"] }
 
     SettingsEnvelope:
@@ -793,6 +794,7 @@ components:
         bankAccount: { type: string }
         bankHolder: { type: string }
         paymentEnabled: { type: boolean }
+        sepayApiKey: { type: string }
 
     CreateOrderInput:
       type: object
