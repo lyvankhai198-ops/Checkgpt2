@@ -840,7 +840,6 @@ export function createBot(token: string): Telegraf {
   });
 
   bot.hears(BTN.BUY, async (ctx) => {
-    await ctx.answerCbQuery?.().catch(() => {});
     const p = await getPrices();
     await ctx.replyWithHTML(
       "🛒 <b>Chọn gói phù hợp với bạn:</b>",
