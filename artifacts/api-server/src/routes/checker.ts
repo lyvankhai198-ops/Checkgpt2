@@ -5,6 +5,17 @@ import { CheckAccountsBody, CheckSingleBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
+/** Round-robin proxy selector */
+function makeProxyPicker(proxies: string[] | undefined) {
+  if (!proxies || proxies.length === 0) return () => undefined;
+  let idx = 0;
+  return () => {
+    const proxy = proxies[idx % proxies.length];
+    idx++;
+    return proxy;
+  };
+}
+
 router.post("/check", async (req, res): Promise<void> => {
   const parsed = CheckAccountsBody.safeParse(req.body);
   if (!parsed.success) {
@@ -12,7 +23,7 @@ router.post("/check", async (req, res): Promise<void> => {
     return;
   }
 
-  const { mode, rawText, concurrency = 3 } = parsed.data;
+  const { mode, rawText, concurrency = 3, proxies } = parsed.data;
   const lines = rawText
     .split("\n")
     .map((l) => l.trim())
@@ -36,6 +47,7 @@ router.post("/check", async (req, res): Promise<void> => {
 
   send({ type: "start", total: lines.length });
 
+  const pickProxy = makeProxyPicker(proxies);
   let completed = 0;
   const sem = concurrency;
   let running = 0;
@@ -46,6 +58,7 @@ router.post("/check", async (req, res): Promise<void> => {
       while (running < sem && idx < lines.length) {
         const i = idx++;
         const line = lines[i];
+        const proxyUrl = pickProxy();
         running++;
 
         (async () => {
@@ -53,9 +66,9 @@ router.post("/check", async (req, res): Promise<void> => {
           if (mode === "account") {
             const parts = line.split("|").map((p) => p.trim());
             if (parts.length >= 3) {
-              result = await checkAccount(parts[0], parts[1], parts[2]);
+              result = await checkAccount(parts[0], parts[1], parts[2], proxyUrl);
             } else if (parts.length === 2) {
-              result = await checkAccount(parts[0], parts[1], "");
+              result = await checkAccount(parts[0], parts[1], "", proxyUrl);
             } else {
               result = {
                 input: line.slice(0, 50),
@@ -67,7 +80,7 @@ router.post("/check", async (req, res): Promise<void> => {
               };
             }
           } else {
-            result = await checkSessionToken(line);
+            result = await checkSessionToken(line, proxyUrl);
           }
 
           completed++;
@@ -93,9 +106,7 @@ router.post("/check", async (req, res): Promise<void> => {
     tryNext();
   });
 
-  const liveCount = 0; // client counts from results
-  const dieCount = 0;
-  send({ type: "done", total: lines.length, live: liveCount, die: dieCount });
+  send({ type: "done", total: lines.length });
   res.end();
 });
 
@@ -106,7 +117,7 @@ router.post("/check-single", async (req, res): Promise<void> => {
     return;
   }
 
-  const { mode, rawText } = parsed.data;
+  const { mode, rawText, proxies } = parsed.data;
   const lines = rawText
     .split("\n")
     .map((l) => l.trim())
@@ -117,20 +128,21 @@ router.post("/check-single", async (req, res): Promise<void> => {
     return;
   }
 
+  const proxyUrl = proxies && proxies.length > 0 ? proxies[0] : undefined;
   const line = lines[0];
   let result;
   if (mode === "account") {
     const parts = line.split("|").map((p) => p.trim());
     if (parts.length >= 3) {
-      result = await checkAccount(parts[0], parts[1], parts[2]);
+      result = await checkAccount(parts[0], parts[1], parts[2], proxyUrl);
     } else if (parts.length === 2) {
-      result = await checkAccount(parts[0], parts[1], "");
+      result = await checkAccount(parts[0], parts[1], "", proxyUrl);
     } else {
       res.status(400).json({ error: "invalid format" });
       return;
     }
   } else {
-    result = await checkSessionToken(line);
+    result = await checkSessionToken(line, proxyUrl);
   }
 
   res.json(result);

@@ -29,7 +29,8 @@ export const checkAccountsBodyConcurrencyMax = 10;
 export const CheckAccountsBody = zod.object({
   "mode": zod.enum(['account', 'session']).describe('account = email|pass|2fa, session = access_token or session cookie'),
   "rawText": zod.string().describe('Raw input, one entry per line'),
-  "concurrency": zod.number().min(1).max(checkAccountsBodyConcurrencyMax).default(checkAccountsBodyConcurrencyDefault)
+  "concurrency": zod.number().min(1).max(checkAccountsBodyConcurrencyMax).default(checkAccountsBodyConcurrencyDefault),
+  "proxies": zod.array(zod.string()).optional().describe('Optional proxy list (http:\/\/host:port or http:\/\/user:pass@host:port). Rotated round-robin per account.')
 })
 
 export const CheckAccountsResponse = zod.unknown()
@@ -46,7 +47,8 @@ export const checkSingleBodyConcurrencyMax = 10;
 export const CheckSingleBody = zod.object({
   "mode": zod.enum(['account', 'session']).describe('account = email|pass|2fa, session = access_token or session cookie'),
   "rawText": zod.string().describe('Raw input, one entry per line'),
-  "concurrency": zod.number().min(1).max(checkSingleBodyConcurrencyMax).default(checkSingleBodyConcurrencyDefault)
+  "concurrency": zod.number().min(1).max(checkSingleBodyConcurrencyMax).default(checkSingleBodyConcurrencyDefault),
+  "proxies": zod.array(zod.string()).optional().describe('Optional proxy list (http:\/\/host:port or http:\/\/user:pass@host:port). Rotated round-robin per account.')
 })
 
 export const CheckSingleResponse = zod.object({

@@ -92,6 +92,11 @@ components:
           minimum: 1
           maximum: 10
           default: 3
+        proxies:
+          type: array
+          items:
+            type: string
+          description: "Optional proxy list (http://host:port or http://user:pass@host:port). Rotated round-robin per account."
 
     CheckResult:
       type: object

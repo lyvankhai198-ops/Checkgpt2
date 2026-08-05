@@ -30,6 +30,8 @@ export interface CheckInput {
      * @maximum 10
      */
   concurrency?: number;
+  /** Optional proxy list (http://host:port or http://user:pass@host:port). Rotated round-robin per account. */
+  proxies?: string[];
 }
 
 export type CheckResultStatus = typeof CheckResultStatus[keyof typeof CheckResultStatus];

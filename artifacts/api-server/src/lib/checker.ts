@@ -1,15 +1,16 @@
 /**
  * ChatGPT account checker — ported from Python checker.py
  * Handles the full OpenAI/ChatGPT login flow including TOTP MFA.
+ * Supports HTTP/HTTPS proxy via undici ProxyAgent.
  */
 
 import * as crypto from "crypto";
 // TOTP implemented via Node.js crypto (RFC 6238)
 import * as crypto2 from "crypto";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 /** Generate a 6-digit TOTP code from a base32 secret (RFC 6238 / RFC 4226) */
 function generateTOTP(secret: string): string {
-  // Decode base32 secret
   const b32chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   const s = secret.toUpperCase().replace(/=+$/, "").replace(/\s/g, "");
   let bits = 0;
@@ -27,7 +28,6 @@ function generateTOTP(secret: string): string {
   }
   const keyBuf = Buffer.from(bytes);
 
-  // HOTP counter = floor(epoch / 30)
   const counter = Math.floor(Date.now() / 1000 / 30);
   const counterBuf = Buffer.alloc(8);
   counterBuf.writeUInt32BE(Math.floor(counter / 0x100000000), 0);
@@ -41,6 +41,7 @@ function generateTOTP(secret: string): string {
     | (hmac[offset + 3] & 0xff);
   return (code % 1_000_000).toString().padStart(6, "0");
 }
+
 import { CookieJar } from "./cookiejar.js";
 import { getSentinelToken } from "./sentinel.js";
 import { logger } from "./logger.js";
@@ -117,21 +118,36 @@ function jsonHeaders(referer: string, origin: string): Record<string, string> {
   };
 }
 
+/** Build a ProxyAgent if proxyUrl is set, undefined otherwise. */
+function makeAgent(proxyUrl?: string): ProxyAgent | undefined {
+  if (!proxyUrl) return undefined;
+  return new ProxyAgent(proxyUrl);
+}
+
 async function doFetch(
   url: string,
-  opts: RequestInit & { cookies: CookieJar },
+  opts: RequestInit & { cookies: CookieJar; proxyUrl?: string },
 ): Promise<Response> {
   const cookieHeader = opts.cookies.getCookieHeader(url);
   const headers = new Headers(opts.headers as Record<string, string>);
   if (cookieHeader) headers.set("Cookie", cookieHeader);
 
-  const res = await fetch(url, {
-    ...opts,
-    headers,
-    redirect: "manual",
-  });
+  const { cookies: _cookies, proxyUrl, ...rest } = opts;
+  const fetchOpts = { ...rest, headers, redirect: "manual" as RequestRedirect };
 
-  // Parse and store cookies from response
+  let res: Response;
+  if (proxyUrl) {
+    const agent = makeAgent(proxyUrl);
+    // undici fetch with ProxyAgent dispatcher
+    res = await (undiciFetch as unknown as typeof fetch)(url, {
+      ...fetchOpts,
+      // @ts-ignore undici dispatcher
+      dispatcher: agent,
+    });
+  } else {
+    res = await fetch(url, fetchOpts);
+  }
+
   opts.cookies.setCookiesFromHeaders(res.headers, new URL(url).hostname);
   return res;
 }
@@ -141,10 +157,11 @@ async function getFollow(
   headers: Record<string, string>,
   cookies: CookieJar,
   maxHops = MAX_REDIRECT_HOPS,
+  proxyUrl?: string,
 ): Promise<[Response, string]> {
   let current = url;
   for (let i = 0; i < maxHops; i++) {
-    const res = await doFetch(current, { method: "GET", headers, cookies });
+    const res = await doFetch(current, { method: "GET", headers, cookies, proxyUrl });
     if ([301, 302, 303, 307, 308].includes(res.status)) {
       const location = res.headers.get("location");
       if (!location) break;
@@ -156,13 +173,13 @@ async function getFollow(
   throw new LoginError({ reason: "network_error", message: "Too many redirects" });
 }
 
-async function prime(cookies: CookieJar): Promise<void> {
+async function prime(cookies: CookieJar, proxyUrl?: string): Promise<void> {
   if (cookies.get("__cf_bm")) return;
   logger.info("[login] [0/9] prime chatgpt.com");
   const headers = navHeaders(`${CHATGPT_BASE}/`, "same-origin");
   for (let attempt = 0; attempt < HTTP_RETRY_ATTEMPTS; attempt++) {
     try {
-      const res = await doFetch(URL_AUTH_LOGIN, { method: "GET", headers, cookies, redirect: "follow" });
+      const res = await doFetch(URL_AUTH_LOGIN, { method: "GET", headers, cookies, redirect: "follow", proxyUrl });
       if (res.status < 400) return;
       if (res.status === 403 && attempt < HTTP_RETRY_ATTEMPTS - 1) {
         await sleep((attempt + 1) * 5000);
@@ -176,12 +193,12 @@ async function prime(cookies: CookieJar): Promise<void> {
   }
 }
 
-async function getCsrf(cookies: CookieJar): Promise<string> {
+async function getCsrf(cookies: CookieJar, proxyUrl?: string): Promise<string> {
   logger.info("[login] [1/9] CSRF token");
   const headers = jsonHeaders(`${CHATGPT_BASE}/auth/login`, CHATGPT_BASE);
   for (let attempt = 0; attempt < HTTP_RETRY_ATTEMPTS; attempt++) {
     try {
-      const res = await doFetch(URL_CSRF, { method: "GET", headers, cookies });
+      const res = await doFetch(URL_CSRF, { method: "GET", headers, cookies, proxyUrl });
       if (res.status === 403 && attempt < HTTP_RETRY_ATTEMPTS - 1) {
         await sleep((attempt + 1) * 5000); continue;
       }
@@ -204,6 +221,7 @@ async function stepAuthUrl(
   deviceId: string,
   loginHint: string,
   cookies: CookieJar,
+  proxyUrl?: string,
 ): Promise<string> {
   logger.info("[login] [2/9] authorize URL");
   const params = new URLSearchParams([
@@ -226,6 +244,7 @@ async function stepAuthUrl(
     headers: { ...headers, "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
     cookies,
+    proxyUrl,
   });
 
   if (res.status !== 200) throw new LoginError({ reason: "network_error", message: `signin ${res.status}` });
@@ -237,16 +256,21 @@ async function stepAuthUrl(
   return authUrl;
 }
 
-async function bootstrap(email: string, useHint: boolean, cookies: CookieJar): Promise<[string, string]> {
+async function bootstrap(
+  email: string,
+  useHint: boolean,
+  cookies: CookieJar,
+  proxyUrl?: string,
+): Promise<[string, string]> {
   const defaultDid = crypto.randomUUID();
-  await prime(cookies);
-  const csrf = await getCsrf(cookies);
+  await prime(cookies, proxyUrl);
+  const csrf = await getCsrf(cookies, proxyUrl);
   const hint = useHint ? email : "";
-  const authUrl = await stepAuthUrl(csrf, defaultDid, hint, cookies);
+  const authUrl = await stepAuthUrl(csrf, defaultDid, hint, cookies, proxyUrl);
 
   logger.info("[login] [3/9] OAuth init (GET authorize)");
   const headers = navHeaders(`${CHATGPT_BASE}/`, "cross-site");
-  const [, landing] = await getFollow(authUrl, headers, cookies);
+  const [, landing] = await getFollow(authUrl, headers, cookies, MAX_REDIRECT_HOPS, proxyUrl);
   const deviceId = cookies.get("oai-did") || defaultDid;
   return [deviceId, landing];
 }
@@ -262,6 +286,7 @@ async function authorizeContinue(
   sentinel: string,
   deviceId: string,
   cookies: CookieJar,
+  proxyUrl?: string,
 ): Promise<Record<string, unknown>> {
   const headers: Record<string, string> = jsonHeaders(`${AUTH_BASE}/log-in`, AUTH_BASE);
   if (sentinel) headers["openai-sentinel-token"] = sentinel;
@@ -272,6 +297,7 @@ async function authorizeContinue(
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ username: { value: email, kind: "email" }, screen_hint: "login" }),
     cookies,
+    proxyUrl,
   });
   if (res.status !== 200) throw new LoginError({ reason: "network_error", message: `authorize/continue ${res.status}` });
   return await res.json() as Record<string, unknown>;
@@ -282,6 +308,7 @@ async function passwordVerify(
   deviceId: string,
   sentinel: string,
   cookies: CookieJar,
+  proxyUrl?: string,
 ): Promise<Record<string, unknown>> {
   logger.info("[login] [4/9] password/verify");
   const headers: Record<string, string> = jsonHeaders(`${AUTH_BASE}/log-in/password`, AUTH_BASE);
@@ -293,6 +320,7 @@ async function passwordVerify(
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ password }),
     cookies,
+    proxyUrl,
   });
 
   if ([401, 403].includes(res.status)) {
@@ -312,7 +340,12 @@ async function passwordVerify(
   return await res.json() as Record<string, unknown>;
 }
 
-async function mfaIssue(challengeId: string, deviceId: string, cookies: CookieJar): Promise<void> {
+async function mfaIssue(
+  challengeId: string,
+  deviceId: string,
+  cookies: CookieJar,
+  proxyUrl?: string,
+): Promise<void> {
   const headers: Record<string, string> = jsonHeaders(`${AUTH_BASE}/mfa-challenge`, AUTH_BASE);
   if (deviceId) headers["oai-device-id"] = deviceId;
   try {
@@ -321,6 +354,7 @@ async function mfaIssue(challengeId: string, deviceId: string, cookies: CookieJa
       headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({ id: challengeId, type: "totp", force_fresh_challenge: false }),
       cookies,
+      proxyUrl,
     });
   } catch { /* ignore */ }
 }
@@ -330,6 +364,7 @@ async function mfaVerify(
   code: string,
   deviceId: string,
   cookies: CookieJar,
+  proxyUrl?: string,
 ): Promise<Record<string, unknown>> {
   logger.info("[login] [5/9] MFA verify (TOTP)");
   const headers: Record<string, string> = jsonHeaders(`${AUTH_BASE}/mfa-challenge`, AUTH_BASE);
@@ -340,6 +375,7 @@ async function mfaVerify(
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ id: challengeId, type: "totp", code }),
     cookies,
+    proxyUrl,
   });
   if (res.status !== 200) {
     if ([400, 401, 403].includes(res.status)) throw new LoginError({ reason: "mfa_required", message: "TOTP code wrong" });
@@ -348,7 +384,11 @@ async function mfaVerify(
   return await res.json() as Record<string, unknown>;
 }
 
-async function followToCallback(startUrl: string, cookies: CookieJar): Promise<string | null> {
+async function followToCallback(
+  startUrl: string,
+  cookies: CookieJar,
+  proxyUrl?: string,
+): Promise<string | null> {
   let current = startUrl;
   const headers = navHeaders(`${CHATGPT_BASE}/`, "cross-site");
   for (let i = 0; i < MAX_REDIRECT_HOPS; i++) {
@@ -356,7 +396,7 @@ async function followToCallback(startUrl: string, cookies: CookieJar): Promise<s
       return current;
     }
     try {
-      const res = await doFetch(current, { method: "GET", headers, cookies });
+      const res = await doFetch(current, { method: "GET", headers, cookies, proxyUrl });
       if ([301, 302, 303, 307, 308].includes(res.status)) {
         const location = res.headers.get("location");
         if (!location) return null;
@@ -374,13 +414,17 @@ async function followToCallback(startUrl: string, cookies: CookieJar): Promise<s
   return null;
 }
 
-async function consumeCallback(callbackUrl: string, cookies: CookieJar): Promise<boolean> {
+async function consumeCallback(
+  callbackUrl: string,
+  cookies: CookieJar,
+  proxyUrl?: string,
+): Promise<boolean> {
   if (!callbackUrl.includes("code=")) return false;
   const headers = navHeaders(`${AUTH_BASE}/`, "cross-site");
   let current = callbackUrl;
   for (let i = 0; i < MAX_REDIRECT_HOPS; i++) {
     try {
-      const res = await doFetch(current, { method: "GET", headers, cookies });
+      const res = await doFetch(current, { method: "GET", headers, cookies, proxyUrl });
       if (cookies.hasSessionToken()) return true;
       if ([301, 302, 303, 307, 308].includes(res.status)) {
         const location = res.headers.get("location");
@@ -396,10 +440,14 @@ async function consumeCallback(callbackUrl: string, cookies: CookieJar): Promise
   return cookies.hasSessionToken();
 }
 
-async function consumeCallbackVerified(callbackUrl: string, cookies: CookieJar): Promise<boolean> {
+async function consumeCallbackVerified(
+  callbackUrl: string,
+  cookies: CookieJar,
+  proxyUrl?: string,
+): Promise<boolean> {
   if (!callbackUrl.includes("code=")) return false;
   for (let attempt = 0; attempt < CALLBACK_VERIFY_ATTEMPTS; attempt++) {
-    await consumeCallback(callbackUrl, cookies);
+    await consumeCallback(callbackUrl, cookies, proxyUrl);
     if (cookies.hasSessionToken()) {
       logger.info(`[login] [6/9] callback verified (attempt ${attempt + 1})`);
       return true;
@@ -409,10 +457,10 @@ async function consumeCallbackVerified(callbackUrl: string, cookies: CookieJar):
   return false;
 }
 
-async function getSession(cookies: CookieJar): Promise<Record<string, unknown>> {
+async function getSession(cookies: CookieJar, proxyUrl?: string): Promise<Record<string, unknown>> {
   logger.info("[login] [9/9] GET /api/auth/session");
   const headers = jsonHeaders(`${CHATGPT_BASE}/`, CHATGPT_BASE);
-  const res = await doFetch(URL_SESSION, { method: "GET", headers, cookies });
+  const res = await doFetch(URL_SESSION, { method: "GET", headers, cookies, proxyUrl });
   if (res.status !== 200) throw new LoginError({ reason: "network_error", message: `session ${res.status}` });
   return await res.json() as Record<string, unknown>;
 }
@@ -443,7 +491,6 @@ function detectPlanFromData(session: Record<string, unknown>, meData: Record<str
     return null;
   }
 
-  // ── Layer 1: session.subscription_plan + session.account.planType/plan_type ──
   if (session && typeof session === "object") {
     const subPlan = String(session["subscription_plan"] ?? "").toLowerCase();
     const accObj  = (session["account"] as Obj | null) ?? {};
@@ -454,7 +501,6 @@ function detectPlanFromData(session: Record<string, unknown>, meData: Record<str
       if (hit) return hit;
     }
 
-    // ── Layer 2: session.accounts dict-of-dicts ──
     const accounts = session["accounts"];
     if (accounts && typeof accounts === "object" && !Array.isArray(accounts)) {
       for (const acc of Object.values(accounts as Obj)) {
@@ -467,7 +513,6 @@ function detectPlanFromData(session: Record<string, unknown>, meData: Record<str
       }
     }
 
-    // ── Layer 3: session.entitlements[] as string scan ──
     const sessionEnts = session["entitlements"];
     if (Array.isArray(sessionEnts)) {
       for (const ent of sessionEnts) {
@@ -479,13 +524,11 @@ function detectPlanFromData(session: Record<string, unknown>, meData: Record<str
     }
   }
 
-  // ── Layer 4: me_data.plan_type ──
   if (meData && typeof meData === "object") {
     const planType = String(meData["plan_type"] ?? "").toLowerCase();
     const hit = planMatch(planType);
     if (hit) return hit;
 
-    // ── Layer 5: me_data.accounts (dict or list) ──
     const meAccounts = meData["accounts"];
     let accList: unknown[] = [];
     if (meAccounts && typeof meAccounts === "object") {
@@ -502,7 +545,6 @@ function detectPlanFromData(session: Record<string, unknown>, meData: Record<str
       }
     }
 
-    // ── Layer 6: me_data.entitlements[] with has_entitlement flag ──
     const meEnts = meData["entitlements"];
     if (Array.isArray(meEnts)) {
       for (const ent of meEnts) {
@@ -520,7 +562,6 @@ function detectPlanFromData(session: Record<string, unknown>, meData: Record<str
     }
   }
 
-  // ── Final fallback: full JSON string scan ──
   const combined = (JSON.stringify(session) + " " + JSON.stringify(meData)).toLowerCase();
   if (combined.includes("chatgptplusplan") || combined.includes('"plan_type": "plus"') || combined.includes("'plan_type': 'plus'") || combined.includes('"plan_type":"plus"') || combined.includes('"plantype": "plus"')) return "Plus";
   if (combined.includes("chatgptteamplan") || combined.includes('"plan_type": "team"') || combined.includes("'plan_type': 'team'") || combined.includes('"plan_type":"team"') || combined.includes('"plantype": "team"')) return "Team";
@@ -533,10 +574,28 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Build fetch init for /backend-api/me, optionally using a proxy */
+async function fetchMe(
+  url: string,
+  headers: Record<string, string>,
+  proxyUrl?: string,
+): Promise<Response> {
+  if (proxyUrl) {
+    const agent = makeAgent(proxyUrl);
+    return (undiciFetch as unknown as typeof fetch)(url, {
+      headers,
+      // @ts-ignore undici dispatcher
+      dispatcher: agent,
+    });
+  }
+  return fetch(url, { headers });
+}
+
 export async function checkAccount(
   email: string,
   password: string,
   totpSecret: string,
+  proxyUrl?: string,
 ): Promise<CheckResult> {
   const result: CheckResult = {
     input: `${email}|***|***`,
@@ -550,18 +609,18 @@ export async function checkAccount(
   const cookies = new CookieJar();
 
   try {
-    let [deviceId, landing] = await bootstrap(email, true, cookies);
+    let [deviceId, landing] = await bootstrap(email, true, cookies, proxyUrl);
     logger.info({ landing: landing.slice(0, 100) }, "[login] landing");
     let flow = detectFlow(landing);
 
     if (!flow) {
-      [deviceId, landing] = await bootstrap(email, false, cookies);
+      [deviceId, landing] = await bootstrap(email, false, cookies, proxyUrl);
       flow = detectFlow(landing);
 
       if (!flow) {
         const cookieStr = cookies.getCookieHeader(AUTH_BASE);
         const sentinel = await getSentinelToken(deviceId, "login", cookieStr);
-        const acData = await authorizeContinue(email, sentinel, deviceId, cookies) as Record<string, unknown>;
+        const acData = await authorizeContinue(email, sentinel, deviceId, cookies, proxyUrl) as Record<string, unknown>;
         const pageInfo = (acData["page"] as Record<string, unknown>) || {};
         const pageType = String(pageInfo["type"] || "").trim();
         const continueUrl = String(acData["continue_url"] || "").trim();
@@ -584,7 +643,7 @@ export async function checkAccount(
 
     const cookieStr = cookies.getCookieHeader(AUTH_BASE);
     const sentinel = await getSentinelToken(deviceId, "login", cookieStr);
-    const pwdData = await passwordVerify(password, deviceId, sentinel, cookies) as Record<string, unknown>;
+    const pwdData = await passwordVerify(password, deviceId, sentinel, cookies, proxyUrl) as Record<string, unknown>;
     const pageInfo = (pwdData["page"] as Record<string, unknown>) || {};
     const pageType = String(pageInfo["type"] || "").trim();
     let continueUrl = String(pwdData["continue_url"] || "").trim();
@@ -600,7 +659,7 @@ export async function checkAccount(
         result.error = "MFA required but no TOTP secret provided";
         return result;
       }
-      await mfaIssue(challengeId, deviceId, cookies);
+      await mfaIssue(challengeId, deviceId, cookies, proxyUrl);
       let code: string;
       try {
         code = generateTOTP(totpSecret);
@@ -608,7 +667,7 @@ export async function checkAccount(
         result.error = `invalid TOTP secret: ${e}`;
         return result;
       }
-      const mfaData = await mfaVerify(challengeId, code, deviceId, cookies) as Record<string, unknown>;
+      const mfaData = await mfaVerify(challengeId, code, deviceId, cookies, proxyUrl) as Record<string, unknown>;
       continueUrl = String(mfaData["continue_url"] || "").trim();
     }
 
@@ -617,18 +676,18 @@ export async function checkAccount(
     }
 
     if (continueUrl && continueUrl.includes("auth.openai.com") && !continueUrl.includes("code=")) {
-      const csrf2 = await getCsrf(cookies);
-      const authUrl2 = await stepAuthUrl(csrf2, "", "", cookies);
-      const cb = await followToCallback(authUrl2, cookies);
-      if (cb) await consumeCallbackVerified(cb, cookies);
+      const csrf2 = await getCsrf(cookies, proxyUrl);
+      const authUrl2 = await stepAuthUrl(csrf2, "", "", cookies, proxyUrl);
+      const cb = await followToCallback(authUrl2, cookies, proxyUrl);
+      if (cb) await consumeCallbackVerified(cb, cookies, proxyUrl);
     } else if (continueUrl) {
-      const cb = await followToCallback(continueUrl, cookies);
-      if (cb) await consumeCallbackVerified(cb, cookies);
+      const cb = await followToCallback(continueUrl, cookies, proxyUrl);
+      if (cb) await consumeCallbackVerified(cb, cookies, proxyUrl);
     } else {
-      const csrf2 = await getCsrf(cookies);
-      const authUrl2 = await stepAuthUrl(csrf2, "", "", cookies);
-      const cb = await followToCallback(authUrl2, cookies);
-      if (cb) await consumeCallbackVerified(cb, cookies);
+      const csrf2 = await getCsrf(cookies, proxyUrl);
+      const authUrl2 = await stepAuthUrl(csrf2, "", "", cookies, proxyUrl);
+      const cb = await followToCallback(authUrl2, cookies, proxyUrl);
+      if (cb) await consumeCallbackVerified(cb, cookies, proxyUrl);
     }
 
     if (!cookies.hasSessionToken()) {
@@ -636,7 +695,7 @@ export async function checkAccount(
       return result;
     }
 
-    const session = await getSession(cookies);
+    const session = await getSession(cookies, proxyUrl);
     const accessToken = extractAccessToken(session);
     if (!accessToken) {
       result.error = "no access_token in session";
@@ -649,15 +708,13 @@ export async function checkAccount(
     result.email = (user["email"] as string) || email;
 
     try {
-      const meRes = await fetch("https://chatgpt.com/backend-api/me", {
-        headers: {
-          "Accept": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-          "Referer": "https://chatgpt.com/",
-          "User-Agent": CHROME_UA,
-          "Cookie": cookies.getCookieHeader("https://chatgpt.com"),
-        },
-      });
+      const meRes = await fetchMe("https://chatgpt.com/backend-api/me", {
+        "Accept": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+        "Referer": "https://chatgpt.com/",
+        "User-Agent": CHROME_UA,
+        "Cookie": cookies.getCookieHeader("https://chatgpt.com"),
+      }, proxyUrl);
       if (meRes.ok) {
         const meData = await meRes.json() as Record<string, unknown>;
         result.plan = detectPlanFromData(session, meData);
@@ -681,7 +738,7 @@ export async function checkAccount(
   return result;
 }
 
-export async function checkSessionToken(token: string): Promise<CheckResult> {
+export async function checkSessionToken(token: string, proxyUrl?: string): Promise<CheckResult> {
   token = token.trim();
   const result: CheckResult = {
     input: token.length > 30 ? token.slice(0, 30) + "..." : token,
@@ -695,14 +752,12 @@ export async function checkSessionToken(token: string): Promise<CheckResult> {
   try {
     if (token.startsWith("eyJ")) {
       // JWT access token
-      const res = await fetch("https://chatgpt.com/backend-api/me", {
-        headers: {
-          "Accept": "application/json",
-          "Authorization": `Bearer ${token}`,
-          "Accept-Language": "en-US,en;q=0.9",
-          "User-Agent": CHROME_UA,
-        },
-      });
+      const res = await fetchMe("https://chatgpt.com/backend-api/me", {
+        "Accept": "application/json",
+        "Authorization": `Bearer ${token}`,
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": CHROME_UA,
+      }, proxyUrl);
       if (res.ok) {
         const data = await res.json() as Record<string, unknown>;
         result.status = "live";
@@ -720,9 +775,9 @@ export async function checkSessionToken(token: string): Promise<CheckResult> {
       // Session cookie
       const cookies = new CookieJar();
       cookies.set("__Secure-next-auth.session-token", token, "chatgpt.com");
-      await prime(cookies);
+      await prime(cookies, proxyUrl);
       const headers = jsonHeaders(`${CHATGPT_BASE}/`, CHATGPT_BASE);
-      const res = await doFetch(URL_SESSION, { method: "GET", headers, cookies });
+      const res = await doFetch(URL_SESSION, { method: "GET", headers, cookies, proxyUrl });
       if (res.ok) {
         const data = await res.json() as Record<string, unknown>;
         if (data["user"]) {
@@ -744,4 +799,3 @@ export async function checkSessionToken(token: string): Promise<CheckResult> {
 
   return result;
 }
-

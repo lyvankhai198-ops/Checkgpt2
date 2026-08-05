@@ -72,6 +72,10 @@ export default function Home() {
     () => localStorage.getItem('checker_draft') || ""
   );
   const [concurrency, setConcurrency] = useState(3);
+  const [proxyText, setProxyText] = useState(
+    () => localStorage.getItem('checker_proxies') || ""
+  );
+  const [showProxy, setShowProxy] = useState(false);
   
   const [isChecking, setIsChecking] = useState(false);
   const [results, setResults] = useState<CheckResult[]>([]);
@@ -85,6 +89,10 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem('checker_draft', rawText);
   }, [rawText]);
+
+  useEffect(() => {
+    localStorage.setItem('checker_proxies', proxyText);
+  }, [proxyText]);
 
   const lineCount = rawText ? rawText.split('\n').length : 0;
 
@@ -101,7 +109,10 @@ export default function Home() {
       const response = await fetch('/api/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, rawText, concurrency })
+        body: JSON.stringify({
+          mode, rawText, concurrency,
+          proxies: proxyText.split('\n').map(l => l.trim()).filter(Boolean),
+        })
       });
       
       if (!response.body) throw new Error("No response body from server");
@@ -238,13 +249,49 @@ export default function Home() {
                 className="w-14 bg-background border border-border rounded px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-primary transition-colors"
               />
             </div>
-            <button 
-              onClick={() => { if(confirm("Clear all text?")) setRawText(""); }}
-              className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-destructive/10"
-            >
-              <Trash2 className="w-3.5 h-3.5" /> Clear
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowProxy(v => !v)}
+                className={cn("text-xs flex items-center gap-1 transition-colors px-2 py-1 rounded border", showProxy ? "border-primary/40 text-primary bg-primary/10" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted")}
+                title="Toggle proxy list"
+              >
+                <span className="font-mono font-bold">PROXY</span>
+                {proxyText.split('\n').filter(l => l.trim()).length > 0 && (
+                  <span className="bg-primary text-primary-foreground text-[9px] font-bold px-1 rounded-full">
+                    {proxyText.split('\n').filter(l => l.trim()).length}
+                  </span>
+                )}
+              </button>
+              <button 
+                onClick={() => { if(confirm("Clear all text?")) setRawText(""); }}
+                className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 transition-colors px-2 py-1 rounded hover:bg-destructive/10"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Clear
+              </button>
+            </div>
           </div>
+
+          {showProxy && (
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between px-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Proxy List</label>
+                <span className="text-[10px] text-muted-foreground/60 font-mono">http://host:port hoặc http://user:pass@host:port</span>
+              </div>
+              <textarea
+                value={proxyText}
+                onChange={e => setProxyText(e.target.value)}
+                rows={4}
+                placeholder={"http://1.2.3.4:8080\nhttp://user:pass@5.6.7.8:3128"}
+                spellCheck={false}
+                className="w-full p-2 bg-background border border-border rounded font-mono text-xs leading-relaxed resize-none focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all custom-scrollbar placeholder:text-muted-foreground/40"
+              />
+              {proxyText.trim() && (
+                <p className="text-[10px] text-muted-foreground/60 px-1">
+                  {proxyText.split('\n').filter(l => l.trim()).length} proxy · xoay vòng round-robin
+                </p>
+              )}
+            </div>
+          )}
           
           <button 
             onClick={handleCheck}
