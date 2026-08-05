@@ -133,7 +133,7 @@ async function doFetch(
   if (cookieHeader) headers.set("Cookie", cookieHeader);
 
   const { cookies: _cookies, proxyUrl, ...rest } = opts;
-  const fetchOpts = { ...rest, headers, redirect: "manual" as RequestRedirect };
+  const fetchOpts = { ...rest, headers, redirect: "manual" as "manual" };
 
   let res: Response;
   if (proxyUrl) {
