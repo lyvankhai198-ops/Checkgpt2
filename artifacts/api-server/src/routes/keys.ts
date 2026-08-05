@@ -12,12 +12,21 @@ import {
 
 const router: IRouter = Router();
 
-// Rate limit key endpoints aggressively
+// Rate limit per telegramId (từ query hoặc body) thay vì IP
+// — tránh tình huống tất cả user dùng chung bucket 127.0.0.1
 const keyLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  limit: 20,
+  limit: 30,
   message: { error: "Too many requests" },
   validate: { xForwardedForHeader: false },
+  keyGenerator: (req) => {
+    const tid =
+      (req.query.telegram_id as string) ||
+      (req.body?.telegramId as string) ||
+      req.ip ||
+      "unknown";
+    return String(tid);
+  },
 });
 
 // ─── Validate ─────────────────────────────────────────────────────────────────
