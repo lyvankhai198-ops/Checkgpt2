@@ -688,8 +688,13 @@ export function createBot(token: string): Telegraf {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const showPaymentInfo = async (ctx: any, plan: "basic" | "pro") => {
     await ctx.answerCbQuery();
-    const p = await getPrices();
-    const label = plan === "basic" ? `🟢 Basic — ${p.basicPriceFormatted}` : `🟣 Pro — ${p.proPriceFormatted}`;
+    const [p, plans] = await Promise.all([getPrices(), getPlans()]);
+    const planCfg = plans.find(pl => pl.slug === plan);
+    // Giá lấy từ plansTable (admin quản lý qua trang Gói bán), không dùng settingsTable
+    const priceStr = planCfg ? fmtPlanPrice(planCfg.price) : (plan === "basic" ? p.basicPriceFormatted : p.proPriceFormatted);
+    const emoji = planCfg?.emoji ?? (plan === "basic" ? "🟢" : "🟣");
+    const planName = planCfg?.name ?? (plan === "basic" ? "Basic" : "Pro");
+    const label = `${emoji} ${planName} — ${priceStr}`;
 
     // Manual payment fallback if payment not configured
     if (!p.paymentEnabled || !p.bank?.account) {
