@@ -17,7 +17,7 @@ const keyLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   limit: 20,
   message: { error: "Too many requests" },
-  keyGenerator: (req) => req.body?.telegramId ?? req.ip ?? "unknown",
+  validate: { xForwardedForHeader: false },
 });
 
 // ─── Validate ─────────────────────────────────────────────────────────────────
