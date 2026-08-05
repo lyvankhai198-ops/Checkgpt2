@@ -2,14 +2,14 @@ name: Health Check VPS
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # Chạy mỗi 15 phút
-  workflow_dispatch:           # Cho phép chạy thủ công
+    - cron: '*/15 * * * *'   # Mỗi 15 phút
+  workflow_dispatch:
 
 jobs:
   health-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check API Server
+      - name: Check services on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -20,36 +20,34 @@ jobs:
             echo "=== PM2 Status ==="
             pm2 status
 
-            echo "=== Kiểm tra API Server ==="
-            if curl -sf http://localhost:3001/health > /dev/null; then
+            echo "=== API Server ==="
+            if curl -sf http://localhost:3001/api/healthz > /dev/null; then
               echo "✅ API Server: OK"
             else
-              echo "❌ API Server DOWN — Đang restart..."
+              echo "❌ API Server DOWN — restarting..."
               pm2 restart api-server
               sleep 5
-              if curl -sf http://localhost:3001/health > /dev/null; then
-                echo "✅ API Server đã khởi động lại thành công"
-              else
-                echo "🚨 API Server vẫn lỗi sau khi restart!"
-                pm2 logs api-server --lines 30 --nostream
-              fi
+              curl -sf http://localhost:3001/api/healthz > /dev/null && echo "✅ Restarted OK" || {
+                echo "🚨 API Server vẫn lỗi!"
+                pm2 logs api-server --lines 20 --nostream
+              }
             fi
 
-            echo "=== Kiểm tra Telegram Bot ==="
+            echo "=== Telegram Bot ==="
             if pm2 show telegram-bot | grep -q "online"; then
               echo "✅ Telegram Bot: OK"
             else
-              echo "❌ Telegram Bot DOWN — Đang restart..."
+              echo "❌ Bot DOWN — restarting..."
               pm2 restart telegram-bot
               sleep 3
-              pm2 show telegram-bot | grep -E "status|restarts"
+              pm2 show telegram-bot | grep -E "status|restart"
             fi
 
-            echo "=== Disk & Memory ==="
-            df -h / | tail -1
+            echo "=== Resources ==="
             free -m | grep Mem
+            df -h / | tail -1
 
-      - name: Notify on failure
+      - name: Alert on failure
         if: failure()
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -58,12 +56,10 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            # Gửi thông báo qua Telegram Bot khi có lỗi
             BOT_TOKEN=$(grep TELEGRAM_BOT_TOKEN /opt/checkgpt/.env | cut -d= -f2)
             CHAT_ID=$(grep ADMIN_CHAT_ID /opt/checkgpt/.env | cut -d= -f2)
             if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
               curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
                 -d chat_id="${CHAT_ID}" \
-                -d text="🚨 VPS Health Check FAILED!%0A$(date)%0AKiểm tra ngay: ssh ${USER}@$(hostname)" \
-                -d parse_mode="HTML"
+                -d text="🚨 VPS Health Check FAILED!%0A$(date '+%Y-%m-%d %H:%M')" > /dev/null
             fi
