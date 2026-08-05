@@ -229,7 +229,8 @@ export function createBot(token: string): Telegraf {
   bot.command("check", async (ctx) => {
     if (!await guardRate(ctx)) return;
 
-    const text = ctx.message.text.replace(/^\/check\s*/i, "").trim();
+    // Normalize: strip newlines so Telegram line-wrapping doesn't break email|pass|2fa
+    const text = ctx.message.text.replace(/^\/check\s*/i, "").trim().replace(/\s*\n\s*/g, "");
     if (!text) {
       await ctx.replyWithHTML(
         "📝 <b>Cách dùng:</b>\n" +
