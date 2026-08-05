@@ -82,10 +82,14 @@ export async function useTrial(telegramId: string): Promise<{ allowed: boolean; 
 
 export interface ValidateResponse {
   valid: boolean;
-  reason: string;
+  reason?: string;
   expiresAt?: string;
-  dailyUsesLeft?: number;
-  totalUsesLeft?: number;
+  totalUses?: number;
+  maxTotalUses?: number | null;
+  dailyUses?: number;
+  dailyLimit?: number | null;
+  dailyUsesLeft?: number | null;
+  totalUsesLeft?: number | null;
   retryAfter?: string;
   maxConcurrent?: number;
 }

@@ -28,16 +28,19 @@ router.get("/keys/validate", keyLimiter, async (req, res): Promise<void> => {
   if (!rawKey) { res.status(400).json({ error: "key query param required" }); return; }
 
   const result = await validateKey(rawKey, { telegramId, checkConcurrency: false });
+  const k = result.key;
   res.json({
     valid: result.valid,
     reason: result.reason,
-    expiresAt: result.key?.expiresAt,
-    dailyUsesLeft: result.key?.dailyLimit != null
-      ? Math.max(0, result.key.dailyLimit - result.key.dailyUses)
-      : null,
-    totalUsesLeft: result.key?.maxTotalUses != null
-      ? Math.max(0, result.key.maxTotalUses - result.key.totalUses)
-      : null,
+    expiresAt: k?.expiresAt,
+    // Usage counters — raw values so bot can render "X/Y"
+    totalUses: k?.totalUses ?? 0,
+    maxTotalUses: k?.maxTotalUses ?? null,
+    dailyUses: k?.dailyUses ?? 0,
+    dailyLimit: k?.dailyLimit ?? null,
+    // Convenience "left" fields
+    dailyUsesLeft: k?.dailyLimit != null ? Math.max(0, k.dailyLimit - k.dailyUses) : null,
+    totalUsesLeft: k?.maxTotalUses != null ? Math.max(0, k.maxTotalUses - k.totalUses) : null,
     retryAfter: result.retryAfter,
   });
 });

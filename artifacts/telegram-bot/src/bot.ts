@@ -2,7 +2,7 @@ import { Telegraf, Markup, type Context } from "telegraf";
 import {
   checkTrial, useTrial, validateKey, activateKey,
   useKey, releaseKey, checkSingle, checkBulk, getPrices, createOrder,
-  type CheckResult,
+  type CheckResult, type ValidateResponse,
 } from "./api.js";
 import {
   RateLimiter, formatResult, formatExpiry, escHtml, parseKey,
@@ -66,7 +66,7 @@ async function resolveAccess(ctx: Context): Promise<
         revoked: "❌ Key đã bị thu hồi.",
         brute_force_locked: "⛔ Quá nhiều lần thử sai. Thử lại sau 15 phút.",
       };
-      await ctx.reply((reasons[v.reason] ?? "❌ Key không hợp lệ.") + "\n\nNhập /activate <key> để kích hoạt key mới.");
+      await ctx.reply((reasons[v.reason ?? ""] ?? "❌ Key không hợp lệ.") + "\n\nNhập /activate <key> để kích hoạt key mới.");
       return { allowed: false };
     }
   }
@@ -497,6 +497,78 @@ export function createBot(token: string): Telegraf {
     }
   });
 
+  // ── Helpers for status rendering ─────────────────────────────────────────────
+  function formatUsage(used: number, max: number | null | undefined): string {
+    if (max == null) return `${used} / ∞`;
+    return `${used} / ${max}`;
+  }
+
+  function usageBar(used: number, max: number | null | undefined, width = 10): string {
+    if (max == null || max === 0) return "";
+    const filled = Math.min(width, Math.round((used / max) * width));
+    return "▓".repeat(filled) + "░".repeat(width - filled);
+  }
+
+  function buildStatusLines(key: string, v: Awaited<ReturnType<typeof validateKey>>, trialInfo?: { remaining: number }) {
+    const lines: string[] = ["📊 <b>Trạng thái Key</b>", ""];
+
+    if (trialInfo) {
+      lines.push(`🔑 Key: <i>Chưa kích hoạt</i>`);
+      lines.push(`🎁 Dùng thử miễn phí: <b>${trialInfo.remaining}/${TRIAL_LIMIT}</b> còn lại`);
+      return lines;
+    }
+
+    lines.push(`🔑 Key: <code>${escHtml(key.slice(0, 8))}***</code>`);
+
+    if (!v.valid) {
+      const reasonMap: Record<string, string> = {
+        expired:        "⌛ Key đã hết hạn",
+        locked:         "🔒 Key đang bị khoá",
+        revoked:        "❌ Key đã bị thu hồi",
+        total_exceeded: "🔢 Đã hết tổng lượt dùng",
+        daily_exceeded: "📊 Đã hết lượt dùng hôm nay",
+        not_found:      "❓ Key không tồn tại",
+      };
+      lines.push(`🔴 Trạng thái: <b>Không hợp lệ</b>`);
+      lines.push(`❌ ${reasonMap[v.reason ?? ""] ?? v.reason ?? "Lỗi không xác định"}`);
+      return lines;
+    }
+
+    lines.push(`🟢 Trạng thái: <b>Hợp lệ</b>`);
+
+    // Expiry
+    if (v.expiresAt) {
+      const exp = new Date(v.expiresAt);
+      const daysLeft = Math.ceil((exp.getTime() - Date.now()) / 86_400_000);
+      const dateStr = exp.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+      lines.push(`⌛ Hết hạn: <b>${dateStr}</b> (còn <b>${daysLeft}</b> ngày)`);
+    } else {
+      lines.push(`⌛ Hết hạn: <b>Không giới hạn</b>`);
+    }
+
+    // Total uses
+    const totalUsed = v.totalUses ?? 0;
+    const totalMax = v.maxTotalUses ?? null;
+    const bar = usageBar(totalUsed, totalMax);
+    lines.push(
+      `🔢 Tổng lượt: <b>${formatUsage(totalUsed, totalMax)}</b>` +
+      (bar ? `  <code>${bar}</code>` : "")
+    );
+
+    // Daily uses
+    const dayUsed = v.dailyUses ?? 0;
+    const dayMax = v.dailyLimit ?? null;
+    if (dayMax != null) {
+      const dayBar = usageBar(dayUsed, dayMax);
+      lines.push(
+        `📊 Hôm nay: <b>${formatUsage(dayUsed, dayMax)}</b>` +
+        (dayBar ? `  <code>${dayBar}</code>` : "")
+      );
+    }
+
+    return lines;
+  }
+
   // ── /status ─────────────────────────────────────────────────────────────────
   bot.command("status", async (ctx) => {
     if (!await guardRate(ctx)) return;
@@ -508,34 +580,26 @@ export function createBot(token: string): Telegraf {
     if (!session.activeKey) {
       const trial = await checkTrial(telegramId);
       await ctx.replyWithHTML(
-        "📊 <b>Trạng thái tài khoản</b>\n\n" +
-        `🔑 Key: <i>Chưa kích hoạt</i>\n` +
-        `🎁 Lần thử miễn phí: <b>${trial.remaining}/${TRIAL_LIMIT}</b> còn lại`,
-        Markup.inlineKeyboard([
-          [Markup.button.callback("🛒 Mua Key", "buy_key")],
-        ])
+        buildStatusLines("", { valid: false }, { remaining: trial.remaining }).join("\n"),
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
       );
       return;
     }
 
     const v = await validateKey(session.activeKey, telegramId);
-    const lines = [
-      "📊 <b>Trạng thái Key</b>",
-      "",
-      `🔑 Key: <code>${escHtml(session.activeKey.slice(0, 8))}***</code>`,
-      `🟢 Trạng thái: <b>${v.valid ? "Hợp lệ" : "Không hợp lệ"}</b>`,
-    ];
-    if (v.valid) {
-      lines.push(`⌛ Hết hạn: <b>${formatExpiry(v.expiresAt)}</b>`);
-      if (v.dailyUsesLeft !== null && v.dailyUsesLeft !== undefined)
-        lines.push(`📊 Còn hôm nay: <b>${v.dailyUsesLeft}</b> lượt`);
-      if (v.totalUsesLeft !== null && v.totalUsesLeft !== undefined)
-        lines.push(`🔢 Tổng còn lại: <b>${v.totalUsesLeft}</b> lượt`);
-    } else {
-      lines.push(`❌ Lý do: ${v.reason}`);
-      setSession(uid, { activeKey: undefined });
-    }
-    await ctx.replyWithHTML(lines.join("\n"));
+    const lines = buildStatusLines(session.activeKey, v);
+    const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
+
+    if (!v.valid) setSession(uid, { activeKey: undefined });
+
+    await ctx.replyWithHTML(
+      lines.join("\n"),
+      exhausted
+        ? Markup.inlineKeyboard([
+            [Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")],
+          ])
+        : undefined
+    );
   });
 
   // ── Inline button callbacks ──────────────────────────────────────────────────
@@ -592,7 +656,8 @@ export function createBot(token: string): Telegraf {
     );
   });
 
-  const showPaymentInfo = async (ctx: Parameters<typeof bot.action>[1] extends (ctx: infer C) => unknown ? C : never, plan: "basic" | "pro") => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const showPaymentInfo = async (ctx: any, plan: "basic" | "pro") => {
     await ctx.answerCbQuery();
     const p = await getPrices();
     const label = plan === "basic" ? `🟢 Basic — ${p.basicPriceFormatted}` : `🟣 Pro — ${p.proPriceFormatted}`;
@@ -666,19 +731,28 @@ export function createBot(token: string): Telegraf {
     const uid = ctx.from!.id;
     const telegramId = String(uid);
     const session = getSession(uid);
-    const trial = await checkTrial(telegramId);
 
     if (!session.activeKey) {
+      const trial = await checkTrial(telegramId);
       await ctx.replyWithHTML(
-        `📊 <b>Trạng thái:</b> Chưa có key\n🎁 Dùng thử: <b>${trial.remaining}/${TRIAL_LIMIT}</b> còn lại`
+        buildStatusLines("", { valid: false } as ValidateResponse, { remaining: trial.remaining }).join("\n"),
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
       );
-    } else {
-      const v = await validateKey(session.activeKey, telegramId);
-      await ctx.replyWithHTML(
-        `📊 <b>Key:</b> <code>${escHtml(session.activeKey.slice(0, 8))}***</code>\n` +
-        `🟢 Hợp lệ: <b>${v.valid}</b>\n⌛ Hết hạn: <b>${formatExpiry(v.expiresAt)}</b>`
-      );
+      return;
     }
+
+    const v = await validateKey(session.activeKey, telegramId);
+    const lines = buildStatusLines(session.activeKey, v);
+    const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
+
+    if (!v.valid) setSession(uid, { activeKey: undefined });
+
+    await ctx.replyWithHTML(
+      lines.join("\n"),
+      exhausted
+        ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]])
+        : undefined
+    );
   });
 
   // ── Plain-text message → auto detect key OR credentials ────────────────────
