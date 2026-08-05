@@ -183,7 +183,40 @@ pm2 restart all
 
 ---
 
-## 9. Cấu hình SePay Webhook trên VPS
+## 9. Cài đặt GitHub Actions Auto-Deploy
+
+Để mỗi lần push code lên GitHub, VPS tự động pull và deploy:
+
+### Thêm secrets vào GitHub repo
+
+Vào **GitHub repo → Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Giá trị |
+|--------|---------|
+| `VPS_HOST` | IP address của VPS (vd: `123.45.67.89`) |
+| `VPS_USER` | User SSH (vd: `root` hoặc `ubuntu`) |
+| `VPS_SSH_KEY` | Nội dung file `~/.ssh/id_rsa` (private key) |
+| `VPS_PORT` | Cổng SSH (mặc định `22`, bỏ qua nếu dùng 22) |
+
+### Tạo SSH key trên VPS (nếu chưa có)
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions"
+cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+cat ~/.ssh/id_ed25519   # Copy nội dung này vào VPS_SSH_KEY trên GitHub
+```
+
+### Thêm ADMIN_CHAT_ID vào .env trên VPS (để nhận alert Telegram)
+
+```bash
+echo "ADMIN_CHAT_ID=123456789" >> /opt/checkgpt/.env
+```
+
+(Lấy chat ID bằng cách nhắn tin `/start` cho bot rồi xem logs)
+
+---
+
+## 10. Cấu hình SePay Webhook trên VPS
 
 Trong Admin Dashboard → Cài đặt → Thanh toán, đặt Webhook URL:
 ```
