@@ -67,11 +67,15 @@ export async function getPlans(): Promise<PlanConfig[]> {
   if (_plansCache && Date.now() - _plansCacheAt < PLANS_TTL) return _plansCache;
   try {
     const data = await get<PlanConfig[]>("/api/plans");
-    _plansCache = Array.isArray(data) ? data : DEFAULT_PLANS;
-    _plansCacheAt = Date.now();
-    return _plansCache;
+    // API chỉ trả enabled plans — lưu vào cache
+    if (Array.isArray(data) && data.length >= 0) {
+      _plansCache = data;
+      _plansCacheAt = Date.now();
+    }
+    return _plansCache ?? [];
   } catch {
-    return _plansCache ?? DEFAULT_PLANS;
+    // Nếu API lỗi → dùng cache cũ, không fallback về hardcoded (tránh hiện gói đã tắt)
+    return _plansCache ?? [];
   }
 }
 
