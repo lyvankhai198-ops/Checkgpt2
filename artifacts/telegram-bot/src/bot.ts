@@ -268,15 +268,15 @@ export function createBot(token: string): Telegraf {
   bot.help(async (ctx) => {
     await ctx.replyWithHTML(
       "<b>📖 Hướng dẫn sử dụng</b>\n\n" +
-      "<b>✨ Check không cần lệnh:</b>\n" +
-      "Dán thẳng tài khoản vào chat — bot tự nhận diện và check ngay!\n\n" +
-      "<b>Định dạng hỗ trợ:</b>\n" +
+      "<b>✨ Không cần dùng lệnh — dán thẳng vào chat:</b>\n\n" +
+      "🔑 <b>Kích hoạt key:</b>\n" +
+      "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
+      "🔍 <b>Check tài khoản:</b>\n" +
       "<code>email|password</code>\n" +
       "<code>email|password|TOTP_SECRET</code>\n" +
       "Nhiều tài khoản: mỗi dòng 1 tài khoản\n\n" +
-      "<b>Lệnh khác:</b>\n" +
-      "• /bulk — Upload file .txt để check hàng loạt\n" +
-      "• /activate KEY — Kích hoạt key\n" +
+      "<b>Lệnh bổ sung:</b>\n" +
+      "• /bulk — Upload file .txt check hàng loạt\n" +
       "• /status — Xem trạng thái key\n\n" +
       "<b>Lưu ý:</b> Mỗi người dùng mới được dùng thử miễn phí 3 lần."
     );
@@ -499,7 +499,12 @@ export function createBot(token: string): Telegraf {
 
   bot.action("help_activate", async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.replyWithHTML("🔑 <b>Cách kích hoạt key:</b>\n\n<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>");
+    await ctx.replyWithHTML(
+      "🔑 <b>Cách kích hoạt key:</b>\n\n" +
+      "Dán thẳng key vào chat (không cần lệnh):\n" +
+      "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
+      "Hoặc dùng lệnh: <code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+    );
   });
 
   bot.action("cmd_status", async (ctx) => {
@@ -522,7 +527,7 @@ export function createBot(token: string): Telegraf {
     }
   });
 
-  // ── Plain-text message → auto credential check (no /check needed) ───────────
+  // ── Plain-text message → auto detect key OR credentials ────────────────────
   bot.on("text", async (ctx) => {
     const uid = ctx.from?.id;
     if (!uid) return;
@@ -536,10 +541,61 @@ export function createBot(token: string): Telegraf {
     const session = getSession(uid);
     if (session.waitingBulk) return;
 
-    // Only handle if text looks like credential data
-    if (!raw.includes("@")) return;
-
     if (!await guardRate(ctx)) return;
+
+    // ── Case 1: looks like a KGPT key → auto activate ──────────────────────
+    const key = parseKey(raw);
+    if (key) {
+      const telegramId = String(uid);
+      const thinkMsg = await ctx.reply("⏳ Đang kích hoạt key...");
+      const result = await activateKey({
+        key,
+        telegramId,
+        username: ctx.from.username,
+        firstName: ctx.from.first_name,
+      });
+      await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
+
+      if (result.success) {
+        setSession(uid, { activeKey: key });
+        const lines = [
+          "✅ <b>Key kích hoạt thành công!</b>",
+          "",
+          `🔑 Key: <code>${escHtml(key.slice(0, 8))}***</code>`,
+          result.expiresAt
+            ? `⌛ Hết hạn: <b>${formatExpiry(result.expiresAt)}</b>`
+            : "⌛ Không hết hạn",
+          result.dailyLimit !== null && result.dailyLimit !== undefined
+            ? `📊 Giới hạn/ngày: <b>${result.dailyLimit}</b>`
+            : "📊 Giới hạn/ngày: Không giới hạn",
+          result.maxTotalUses !== null && result.maxTotalUses !== undefined
+            ? `🔢 Tổng lượt: <b>${result.maxTotalUses}</b>`
+            : "🔢 Tổng lượt: Không giới hạn",
+          "",
+          "Dùng /check hoặc dán tài khoản vào chat để bắt đầu kiểm tra.",
+        ];
+        await ctx.replyWithHTML(lines.join("\n"));
+      } else {
+        const reasons: Record<string, string> = {
+          not_found: "❌ Key không tồn tại hoặc đã nhập sai.",
+          revoked: "❌ Key đã bị thu hồi.",
+          locked: "🔒 Key đang bị khóa. Liên hệ admin.",
+          expired: "⌛ Key đã hết hạn.",
+          telegram_mismatch: "⛔ Key này được gán cho người dùng khác.",
+          max_uses_reached: "🚫 Key đã dùng hết lượt.",
+          brute_force_locked: "⛔ Quá nhiều lần thử sai. Thử lại sau 15 phút.",
+        };
+        await ctx.replyWithHTML(
+          (reasons[result.reason ?? ""] ?? `❌ Kích hoạt thất bại: ${escHtml(result.reason ?? "unknown")}`) +
+          "\n\nKiểm tra lại key hoặc liên hệ admin.",
+          Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+        );
+      }
+      return;
+    }
+
+    // ── Case 2: looks like credentials (has @) → auto check ────────────────
+    if (!raw.includes("@")) return;
     await handleCredentialInput(ctx, raw);
   });
 
