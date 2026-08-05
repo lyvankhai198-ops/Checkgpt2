@@ -19,4 +19,15 @@ process.once("SIGTERM", () => bot.stop("SIGTERM"));
 
 console.log("🤖 Starting GPT Checker Bot (long-polling)...");
 await bot.launch({ dropPendingUpdates: true });
+
+// Register the "/" command menu shown in Telegram clients
+await bot.telegram.setMyCommands([
+  { command: "start",    description: "🏠 Menu chính" },
+  { command: "check",    description: "🔍 Kiểm tra tài khoản ChatGPT" },
+  { command: "bulk",     description: "📦 Check hàng loạt (upload file)" },
+  { command: "activate", description: "🔑 Kích hoạt key" },
+  { command: "status",   description: "📊 Xem trạng thái & lượt dùng key" },
+  { command: "help",     description: "📖 Hướng dẫn sử dụng" },
+]);
+
 console.log("✅  Bot is running.");

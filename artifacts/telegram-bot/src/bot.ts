@@ -283,13 +283,18 @@ export function createBot(token: string): Telegraf {
       `Tôi giúp bạn kiểm tra tài khoản ChatGPT nhanh chóng.\n\n` +
       (trial.hasTrialLeft
         ? `🎁 Bạn còn <b>${trial.remaining}/${TRIAL_LIMIT}</b> lần dùng thử miễn phí.`
-        : `⚠️ Bạn đã hết lần dùng thử. Nhập /activate để kích hoạt key.`
+        : `⚠️ Bạn đã hết lần dùng thử. Mua key để tiếp tục.`
       ),
       Markup.inlineKeyboard([
-        [Markup.button.callback("🔍 Check tài khoản", "help_check")],
-        [Markup.button.callback("🔑 Kích hoạt Key", "help_activate")],
-        [Markup.button.callback("📊 Xem trạng thái Key", "cmd_status")],
-        [Markup.button.callback("🛒 Mua Key", "buy_key")],
+        [
+          Markup.button.callback("🔍 Check tài khoản", "help_check"),
+          Markup.button.callback("📊 Trạng thái Key",  "cmd_status"),
+        ],
+        [
+          Markup.button.callback("🔑 Kích hoạt Key",   "help_activate"),
+          Markup.button.callback("🛒 Mua Key",          "buy_key"),
+        ],
+        [Markup.button.callback("📖 Hướng dẫn",        "show_help")],
       ])
     );
   });
@@ -723,6 +728,30 @@ export function createBot(token: string): Telegraf {
       "Dán thẳng key vào chat (không cần lệnh):\n" +
       "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
       "Hoặc dùng lệnh: <code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+    );
+  });
+
+  bot.action("show_help", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithHTML(
+      "<b>📖 Hướng dẫn sử dụng</b>\n\n" +
+      "<b>✨ Dán thẳng vào chat — không cần gõ lệnh:</b>\n\n" +
+      "🔑 <b>Kích hoạt key:</b>\n" +
+      "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
+      "🔍 <b>Check tài khoản:</b>\n" +
+      "<code>email|password</code>\n" +
+      "<code>email|password|TOTP_SECRET</code>\n" +
+      "Nhiều tài khoản: mỗi dòng 1 tài khoản\n\n" +
+      "<b>📋 Lệnh nhanh:</b>\n" +
+      "/check — Check ngay tại chat\n" +
+      "/bulk — Upload file .txt check hàng loạt\n" +
+      "/activate — Kích hoạt key\n" +
+      "/status — Xem lượt dùng & hết hạn\n\n" +
+      "<i>💡 Mỗi người mới được dùng thử miễn phí 3 lần.</i>",
+      Markup.inlineKeyboard([
+        [Markup.button.callback("🔍 Check ngay", "help_check")],
+        [Markup.button.callback("🛒 Mua Key",    "buy_key")],
+      ])
     );
   });
 
