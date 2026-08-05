@@ -1,0 +1,101 @@
+Hãy phát triển project hiện tại thành một hệ thống Telegram Bot + Dashboard quản trị
+Mục tiêu:
+- Cho thuê quyền sử dụng bot bằng key kích hoạt.
+- Không phá vỡ source đang chạy.
+
+1. Hệ thống key kích hoạt
+- Admin tạo key từ dashboard.
+- Key có trạng thái: chưa kích hoạt, đang hoạt động, hết hạn, khóa, thu hồi.
+- Cấu hình thời hạn theo:
+  + số phút
+  + số giờ
+  + số ngày
+  + ngày hết hạn cụ thể
+- Key có thể giới hạn:
+  + số lần sử dụng
+  + số lượt mỗi ngày
+  + số tác vụ đồng thời
+  + Telegram user ID được phép sử dụng
+  + số thiết bị hoặc phiên đăng nhập
+- Key chỉ được kích hoạt một lần nếu admin bật chế độ khóa theo Telegram ID.
+- Admin có thể cộng thêm thời gian, gia hạn, tạm khóa, mở khóa và thu hồi key.
+- Ghi lại đầy đủ lịch sử kích hoạt và sử dụng.
+
+2. Telegram Bot
+- Khi người dùng bấm /start, bot chưa yêu cầu nhập key người dùng có thể check thử tối đa 3 tài khoản sau đó mới bắt nhập key để tiếp tục
+Có nút mua key. Nút này sẽ phát triển sau
+- Chỉ người dùng có key hợp lệ mới được sử dụng các chức năng.
+
+
+3. Dashboard quản trị
+- Đăng nhập admin an toàn.
+- Trang tổng quan hiển thị:
+  + tổng số key
+  + key đang hoạt động
+  + key sắp hết hạn
+  + key đã hết hạn
+  + số người dùng
+  + số lượt sử dụng hôm nay
+  + biểu đồ sử dụng
+- Trang quản lý key:
+  + tạo key hàng loạt
+  + đặt thời hạn phút/giờ/ngày
+  + giới hạn lượt sử dụng
+  + gán Telegram ID
+  + gia hạn
+  + khóa/mở khóa
+  + thu hồi
+  + xuất CSV
+- Trang quản lý người dùng:
+  + Telegram ID
+  + username
+  + key đang dùng
+  + ngày kích hoạt
+  + lần sử dụng cuối
+  + tổng số lượt
+- Trang nhật ký:
+  + thời gian
+  + người dùng
+  + key
+  + hành động
+  + kết quả
+  + IP
+  + lỗi hệ thống
+- Trang cài đặt:
+  + token bot Telegram
+  + timezone
+  + giới hạn mặc định
+  + nội dung thông báo
+  + thời gian cảnh báo key sắp hết hạn
+
+4. Bảo mật
+- Lưu key dưới dạng hash, không lưu key thô.
+- Không ghi mật khẩu, token hoặc dữ liệu nhạy cảm vào log.
+- Rate limit cho Telegram bot và dashboard.
+- Chống brute force key.
+- Khóa tạm thời sau nhiều lần nhập key sai.
+- CSRF protection, secure cookies và session timeout.
+- Phân quyền admin.
+- Sao lưu database.
+- Biến bí mật phải nằm trong Replit Secrets hoặc biến môi trường.
+
+5. Database
+Tạo các bảng:
+- admins
+- users
+- license_keys
+- key_activations
+- usage_logs
+- audit_logs
+- settings
+
+6. Yêu cầu triển khai
+- Giữ nguyên Python/FastAPI hiện tại nếu đang hoạt động ổn định.
+- Không chuyển toàn bộ sang framework khác nếu không cần thiết.
+- Tạo migration database.
+- Tạo file .env.example.
+- Tạo tài khoản admin đầu tiên bằng biến môi trường.
+- Thêm health check.
+- Không sửa hoặc xóa các chức năng cũ ngoài phạm vi yêu cầu.
+- Trước khi sửa, tạo checkpoint và sao lưu project.
+*
