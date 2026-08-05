@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ChatGPT Account Checker API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: checker
+    description: Account checking operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /check:
+    post:
+      operationId: checkAccounts
+      tags: [checker]
+      summary: Check accounts via SSE stream
+      description: Streams results for bulk account/token checks via Server-Sent Events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckInput"
+      responses:
+        "200":
+          description: SSE stream of CheckEvent objects
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/CheckResult"
+
+  /check-single:
+    post:
+      operationId: checkSingle
+      tags: [checker]
+      summary: Check a single account or token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckInput"
+      responses:
+        "200":
+          description: Single check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckResult"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +76,41 @@ components:
       required:
         - status
 
+    CheckInput:
+      type: object
+      required: [mode, rawText]
+      properties:
+        mode:
+          type: string
+          enum: [account, session]
+          description: "account = email|pass|2fa, session = access_token or session cookie"
+        rawText:
+          type: string
+          description: Raw input, one entry per line
+        concurrency:
+          type: number
+          minimum: 1
+          maximum: 10
+          default: 3
+
+    CheckResult:
+      type: object
+      required: [status]
+      properties:
+        input:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [live, die, deactivated, locked, error]
+        user:
+          type: ["string", "null"]
+        plan:
+          type: ["string", "null"]
+        error:
+          type: ["string", "null"]
+        index:
+          type: ["number", "null"]
+        completed:
+          type: ["number", "null"]

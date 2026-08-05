@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "ChatGPT Account Checker"
+description = "A dark-themed web app for bulk-checking ChatGPT account credentials and session tokens. Supports email|password|2FA and session token modes with real-time SSE streaming results, plan detection (Free/Plus/Team/Pro), and export functionality."
+version = "1.0.0"
+id = "artifacts/checker-app"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19891
+
+[services.development]
+run = "pnpm --filter @workspace/checker-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/checker-app", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/checker-app/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19891"
+BASE_PATH = "/"
