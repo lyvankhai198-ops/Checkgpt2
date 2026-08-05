@@ -73,7 +73,7 @@ export default function Home() {
   );
   const [concurrency, setConcurrency] = useState(3);
   const [proxyText, setProxyText] = useState(
-    () => localStorage.getItem('checker_proxies') || ""
+    () => localStorage.getItem('checker_proxies') || "http://qZridLK2nxkMMhP:lgHMoBhmoPr3uWO@48.45.147.50:42887"
   );
   const [showProxy, setShowProxy] = useState(false);
   
