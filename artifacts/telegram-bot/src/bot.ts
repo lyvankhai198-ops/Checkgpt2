@@ -859,13 +859,20 @@ export function createBot(token: string): Telegraf {
   });
 
   bot.hears(BTN.BUY, async (ctx) => {
-    const p = await getPrices();
+    const plans = await getPlans();
+    const enabled = plans.filter(p => p.enabled);
+    if (enabled.length === 0) {
+      await ctx.replyWithHTML("⚠️ Hiện tại chưa có gói nào đang mở bán. Vui lòng liên hệ admin.");
+      return;
+    }
     await ctx.replyWithHTML(
       "🛒 <b>Chọn gói phù hợp với bạn:</b>",
-      Markup.inlineKeyboard([
-        [Markup.button.callback(`🟢 Basic  —  ${p.basicPriceFormatted}`, "plan_basic")],
-        [Markup.button.callback(`🟣 Pro  —  ${p.proPriceFormatted}`,     "plan_pro")],
-      ])
+      Markup.inlineKeyboard(
+        enabled.map(p => [Markup.button.callback(
+          `${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`,
+          `plan_${p.slug}`
+        )])
+      )
     );
   });
 
