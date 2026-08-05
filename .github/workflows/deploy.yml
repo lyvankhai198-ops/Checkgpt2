@@ -39,7 +39,8 @@ jobs:
             pnpm --filter @workspace/db run push 2>&1 | tail -3
 
             echo "🔄 Restarting PM2..."
-            pm2 reload all --update-env
+            pm2 reload api-server --update-env
+            pm2 restart telegram-bot --update-env
             pm2 save
 
             echo "✅ Deploy hoàn tất!"

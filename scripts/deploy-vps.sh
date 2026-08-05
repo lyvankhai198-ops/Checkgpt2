@@ -32,7 +32,8 @@ export $(grep -v '^#' .env | xargs)
 pnpm --filter @workspace/db run push 2>&1 | tail -3
 
 echo "🔄 Restarting PM2..."
-pm2 reload all --update-env
+pm2 reload api-server --update-env   # graceful reload cho api-server
+pm2 restart telegram-bot --update-env # restart ngay để tránh 409 Conflict (2 bot chạy song song)
 pm2 status
 
 echo "✅ Deploy hoàn tất!"
