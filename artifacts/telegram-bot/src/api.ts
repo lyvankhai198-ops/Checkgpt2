@@ -20,6 +20,69 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// ─── Plans ────────────────────────────────────────────────────────────────────
+
+export interface PlanConfig {
+  id: number;
+  slug: string;
+  name: string;
+  emoji: string;
+  enabled: boolean;
+  price: number;
+  description: string;
+  durationDays: number | null;
+  maxTotalUses: number | null;
+  dailyLimit: number | null;
+  maxConcurrent: number;
+  bulkEnabled: boolean;
+}
+
+let _plansCache: PlanConfig[] | null = null;
+let _plansCacheAt = 0;
+const PLANS_TTL = 5 * 60 * 1000;
+
+const DEFAULT_PLANS: PlanConfig[] = [
+  {
+    id: 1, slug: "basic", name: "Basic", emoji: "🟢", enabled: true, price: 20000,
+    description:
+      "⏱ Thời hạn: <b>1 ngày</b> kể từ lúc kích hoạt\n" +
+      "🔢 Tổng lượt: <b>20 lượt</b>\n" +
+      "🚫 Tối đa <b>1 tài khoản</b> mỗi lần\n" +
+      "🔒 Key tự khoá khi hết 1 ngày <i>hoặc</i> hết 20 lượt",
+    durationDays: 1, maxTotalUses: 20, dailyLimit: null, maxConcurrent: 1, bulkEnabled: false,
+  },
+  {
+    id: 2, slug: "pro", name: "Pro", emoji: "🟣", enabled: true, price: 99000,
+    description:
+      "⏱ Thời hạn: <b>30 ngày</b> kể từ lúc kích hoạt\n" +
+      "🔢 Tổng lượt: <b>30 lần gửi</b>\n" +
+      "✅ Tối đa <b>10 tài khoản</b> mỗi lần\n" +
+      "✅ Hỗ trợ check hàng loạt\n" +
+      "🔒 Key tự khoá khi hết 30 ngày <i>hoặc</i> hết 30 lần gửi",
+    durationDays: 30, maxTotalUses: 30, dailyLimit: null, maxConcurrent: 10, bulkEnabled: true,
+  },
+];
+
+export async function getPlans(): Promise<PlanConfig[]> {
+  if (_plansCache && Date.now() - _plansCacheAt < PLANS_TTL) return _plansCache;
+  try {
+    const data = await get<PlanConfig[]>("/api/plans");
+    _plansCache = Array.isArray(data) ? data : DEFAULT_PLANS;
+    _plansCacheAt = Date.now();
+    return _plansCache;
+  } catch {
+    return _plansCache ?? DEFAULT_PLANS;
+  }
+}
+
+export function getPlanBySlug(plans: PlanConfig[], slug: string): PlanConfig | undefined {
+  return plans.find(p => p.slug === slug);
+}
+
+export function fmtPlanPrice(price: number): string {
+  return price.toLocaleString("vi-VN") + "đ";
+}
+
 // ─── Prices ───────────────────────────────────────────────────────────────────
 
 export interface PricesResponse {

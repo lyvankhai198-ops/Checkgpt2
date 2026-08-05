@@ -7,6 +7,7 @@ import {
   LogOut, 
   LayoutDashboard,
   ShoppingCart,
+  PackageCheck,
 } from "lucide-react";
 import { useAdminLogout } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/keys", label: "Quản lý Key", icon: Key },
+  { href: "/plans", label: "Gói bán", icon: PackageCheck },
   { href: "/orders", label: "Đơn hàng", icon: ShoppingCart },
   { href: "/users", label: "Người dùng", icon: Users },
   { href: "/logs", label: "Nhật ký", icon: Activity },

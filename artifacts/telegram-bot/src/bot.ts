@@ -2,7 +2,8 @@ import { Telegraf, Markup, type Context } from "telegraf";
 import {
   checkTrial, useTrial, validateKey, activateKey,
   useKey, releaseKey, checkSingle, checkBulk, getPrices, createOrder,
-  type CheckResult, type ValidateResponse,
+  getPlans, fmtPlanPrice,
+  type CheckResult, type ValidateResponse, type PlanConfig,
 } from "./api.js";
 import {
   RateLimiter, formatResult, formatExpiry, escHtml, parseKey,
@@ -645,53 +646,44 @@ export function createBot(token: string): Telegraf {
 
   bot.action("buy_key", async (ctx) => {
     await ctx.answerCbQuery();
-    const p = await getPrices();
+    const plans = await getPlans();
+    const enabled = plans.filter(p => p.enabled);
+    if (enabled.length === 0) {
+      await ctx.replyWithHTML("⚠️ Hiện tại chưa có gói nào đang mở bán. Vui lòng liên hệ admin.");
+      return;
+    }
     await ctx.replyWithHTML(
       "🛒 <b>Chọn gói phù hợp với bạn:</b>",
-      Markup.inlineKeyboard([
-        [Markup.button.callback(`🟢 Basic  —  ${p.basicPriceFormatted}`, "plan_basic")],
-        [Markup.button.callback(`🟣 Pro  —  ${p.proPriceFormatted}`,     "plan_pro")],
-      ])
+      Markup.inlineKeyboard(
+        enabled.map(p => [Markup.button.callback(
+          `${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`,
+          `plan_${p.slug}`
+        )])
+      )
     );
   });
 
-  bot.action("plan_basic", async (ctx) => {
-    await ctx.answerCbQuery();
-    const p = await getPrices();
+  // Helper: show plan detail
+  async function showPlanDetail(ctx: Context, slug: string) {
+    await (ctx as any).answerCbQuery();
+    const plans = await getPlans();
+    const plan = plans.find(p => p.slug === slug);
+    if (!plan || !plan.enabled) {
+      await ctx.reply("⚠️ Gói này hiện không khả dụng.");
+      return;
+    }
     await ctx.replyWithHTML(
-      `🟢 <b>Gói Basic — ${p.basicPriceFormatted}</b>\n\n` +
-      "⏱ Thời hạn: <b>1 ngày</b> kể từ lúc kích hoạt\n" +
-      "🔢 Tổng lượt: <b>20 lượt</b>\n" +
-      "📌 Mỗi lần check 1 tài khoản trừ 1 lượt\n" +
-      "🚫 Tối đa <b>1 tài khoản</b> mỗi lần\n" +
-      "🚫 Không hỗ trợ check hàng loạt\n" +
-      "🔒 Key tự khoá khi hết 1 ngày <i>hoặc</i> hết 20 lượt\n\n" +
-      "<i>💡 Thời hạn chỉ bắt đầu tính từ lúc kích hoạt lần đầu.</i>",
+      `${plan.emoji} <b>Gói ${plan.name} — ${fmtPlanPrice(plan.price)}</b>\n\n` +
+      plan.description,
       Markup.inlineKeyboard([
-        [Markup.button.callback("💳 Mua gói Basic", "buy_basic")],
-        [Markup.button.callback("⬅️ Quay lại",       "buy_key")],
+        [Markup.button.callback(`💳 Mua gói ${plan.name}`, `buy_${slug}`)],
+        [Markup.button.callback("⬅️ Quay lại", "buy_key")],
       ])
     );
-  });
+  }
 
-  bot.action("plan_pro", async (ctx) => {
-    await ctx.answerCbQuery();
-    const p = await getPrices();
-    await ctx.replyWithHTML(
-      `🟣 <b>Gói Pro — ${p.proPriceFormatted}</b>\n\n` +
-      "⏱ Thời hạn: <b>30 ngày</b> kể từ lúc kích hoạt\n" +
-      "🔢 Tổng lượt: <b>30 lần gửi</b>\n" +
-      "📌 Mỗi lần gửi 1–10 tài khoản chỉ trừ <b>1 lượt</b>\n" +
-      "✅ Tối đa <b>10 tài khoản</b> mỗi lần\n" +
-      "✅ Hỗ trợ check hàng loạt\n" +
-      "🔒 Key tự khoá khi hết 30 ngày <i>hoặc</i> hết 30 lần gửi\n\n" +
-      "<i>💡 Thời hạn chỉ bắt đầu tính từ lúc kích hoạt lần đầu.</i>",
-      Markup.inlineKeyboard([
-        [Markup.button.callback("💳 Mua gói Pro", "buy_pro")],
-        [Markup.button.callback("⬅️ Quay lại",    "buy_key")],
-      ])
-    );
-  });
+  bot.action("plan_basic", (ctx) => showPlanDetail(ctx, "basic"));
+  bot.action("plan_pro",   (ctx) => showPlanDetail(ctx, "pro"));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const showPaymentInfo = async (ctx: any, plan: "basic" | "pro") => {

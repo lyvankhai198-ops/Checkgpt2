@@ -15,3 +15,18 @@ export const useResetUserTrial = () => {
     }
   });
 };
+
+// ─── Plans ────────────────────────────────────────────────────────────────────
+
+export const useAdminGetPlans = () => {
+  return () => customFetch('/api/admin/plans', { method: 'GET' }) as Promise<any[]>;
+};
+
+export const useAdminUpdatePlan = () => {
+  return (slug: string, data: Record<string, unknown>) =>
+    customFetch(`/api/admin/plans/${slug}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+};
+
