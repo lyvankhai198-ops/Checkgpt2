@@ -97,8 +97,42 @@ export interface CheckResult {
   error: string | null;
 }
 
+/**
+ * Check a single account via the SSE /api/check endpoint — same code path as the web checker.
+ * Falls back with one retry on transient network_error.
+ */
 export async function checkSingle(mode: "account" | "session", line: string): Promise<CheckResult> {
-  return post("/api/check-single", { mode, rawText: line });
+  async function attempt(): Promise<CheckResult | null> {
+    return new Promise((resolve) => {
+      let result: CheckResult | null = null;
+      checkBulk({
+        mode,
+        rawText: line,
+        concurrency: 1,
+        onResult: (r) => { result = r; },
+        onDone: () => resolve(result),
+        onError: () => resolve(null),
+      });
+    });
+  }
+
+  const first = await attempt();
+  if (first && first.status !== "error") return first;
+  // If null (stream error) or transient network/error status — wait 2 s then retry once
+  if (!first || first.error === "network_error" || first.status === "error") {
+    await new Promise<void>((r) => setTimeout(r, 2000));
+    const second = await attempt();
+    if (second) return second;
+  }
+  // Return whatever we have, or a generic error result
+  return first ?? {
+    input: line,
+    email: null,
+    status: "error",
+    user: null,
+    plan: null,
+    error: "network_error",
+  };
 }
 
 /** Streams bulk check results via SSE, calling onResult for each account. */
