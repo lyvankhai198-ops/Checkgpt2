@@ -266,6 +266,26 @@ async function handleCredentialInput(ctx: Context, raw: string) {
   }
 }
 
+// ─── Persistent Reply Keyboard ───────────────────────────────────────────────
+
+const BTN = {
+  CHECK:    "🔍 Check tài khoản",
+  STATUS:   "📊 Trạng thái Key",
+  ACTIVATE: "🔑 Kích hoạt Key",
+  BUY:      "🛒 Mua Key",
+  BULK:     "📦 Bulk Check",
+  HELP:     "📖 Hướng dẫn",
+} as const;
+
+/** Texts that belong to the reply keyboard — skip credential parsing */
+const KEYBOARD_TEXTS = new Set(Object.values(BTN));
+
+const MAIN_KEYBOARD = Markup.keyboard([
+  [BTN.CHECK,    BTN.STATUS],
+  [BTN.ACTIVATE, BTN.BUY],
+  [BTN.BULK,     BTN.HELP],
+]).resize();
+
 // ─── Bot setup ────────────────────────────────────────────────────────────────
 
 export function createBot(token: string): Telegraf {
@@ -285,17 +305,7 @@ export function createBot(token: string): Telegraf {
         ? `🎁 Bạn còn <b>${trial.remaining}/${TRIAL_LIMIT}</b> lần dùng thử miễn phí.`
         : `⚠️ Bạn đã hết lần dùng thử. Mua key để tiếp tục.`
       ),
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback("🔍 Check tài khoản", "help_check"),
-          Markup.button.callback("📊 Trạng thái Key",  "cmd_status"),
-        ],
-        [
-          Markup.button.callback("🔑 Kích hoạt Key",   "help_activate"),
-          Markup.button.callback("🛒 Mua Key",          "buy_key"),
-        ],
-        [Markup.button.callback("📖 Hướng dẫn",        "show_help")],
-      ])
+      MAIN_KEYBOARD
     );
   });
 
@@ -784,6 +794,106 @@ export function createBot(token: string): Telegraf {
     );
   });
 
+  // ── Reply-keyboard button handlers ─────────────────────────────────────────
+  bot.hears(BTN.CHECK, async (ctx) => {
+    if (!await guardRate(ctx)) return;
+    await ctx.replyWithHTML(
+      "🔍 <b>Cách check tài khoản:</b>\n\n" +
+      "Dán thẳng vào chat (không cần lệnh):\n" +
+      "<code>email|password</code>\n" +
+      "<code>email|password|TOTP_SECRET</code>\n\n" +
+      "Nhiều tài khoản: mỗi dòng 1 tài khoản.\n\n" +
+      "Hoặc dùng /bulk để upload file .txt check hàng loạt."
+    );
+  });
+
+  bot.hears(BTN.STATUS, async (ctx) => {
+    if (!await guardRate(ctx)) return;
+    const uid = ctx.from.id;
+    const telegramId = String(uid);
+    const session = getSession(uid);
+    if (!session.activeKey) {
+      const trial = await checkTrial(telegramId);
+      await ctx.replyWithHTML(
+        buildStatusLines("", { valid: false } as ValidateResponse, { remaining: trial.remaining }).join("\n"),
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+      );
+      return;
+    }
+    const v = await validateKey(session.activeKey, telegramId);
+    const lines = buildStatusLines(session.activeKey, v);
+    const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
+    if (!v.valid) setSession(uid, { activeKey: undefined });
+    await ctx.replyWithHTML(
+      lines.join("\n"),
+      exhausted ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined
+    );
+  });
+
+  bot.hears(BTN.ACTIVATE, async (ctx) => {
+    await ctx.replyWithHTML(
+      "🔑 <b>Cách kích hoạt key:</b>\n\n" +
+      "Dán thẳng key vào chat (không cần lệnh):\n" +
+      "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
+      "Hoặc dùng lệnh: <code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+    );
+  });
+
+  bot.hears(BTN.BUY, async (ctx) => {
+    await ctx.answerCbQuery?.().catch(() => {});
+    const p = await getPrices();
+    await ctx.replyWithHTML(
+      "🛒 <b>Chọn gói phù hợp với bạn:</b>",
+      Markup.inlineKeyboard([
+        [Markup.button.callback(`🟢 Basic  —  ${p.basicPriceFormatted}`, "plan_basic")],
+        [Markup.button.callback(`🟣 Pro  —  ${p.proPriceFormatted}`,     "plan_pro")],
+      ])
+    );
+  });
+
+  bot.hears(BTN.BULK, async (ctx) => {
+    if (!await guardRate(ctx)) return;
+    const uid = ctx.from.id;
+    const telegramId = String(uid);
+    const session = getSession(uid);
+    if (!session.activeKey) {
+      await ctx.replyWithHTML(
+        "⛔ <b>Tính năng check hàng loạt yêu cầu key.</b>\n\n" +
+        "Lần dùng thử chỉ cho phép check <b>1 tài khoản</b> mỗi lần.\n\n" +
+        "Dán key vào chat hoặc dùng /activate để kích hoạt.",
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+      );
+      return;
+    }
+    setSession(uid, { waitingBulk: true });
+    await ctx.replyWithHTML(
+      "📤 <b>Gửi file .txt chứa danh sách tài khoản.</b>\n\n" +
+      "Mỗi dòng 1 tài khoản, định dạng:\n" +
+      "<code>email|password</code>\n" +
+      "<code>email|password|TOTP_SECRET</code>\n\n" +
+      `<i>Telegram ID: <code>${telegramId}</code></i>`
+    );
+  });
+
+  bot.hears(BTN.HELP, async (ctx) => {
+    await ctx.replyWithHTML(
+      "<b>📖 Hướng dẫn sử dụng</b>\n\n" +
+      "<b>✨ Dán thẳng vào chat — không cần gõ lệnh:</b>\n\n" +
+      "🔑 <b>Kích hoạt key:</b>\n" +
+      "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
+      "🔍 <b>Check tài khoản:</b>\n" +
+      "<code>email|password</code>\n" +
+      "<code>email|password|TOTP_SECRET</code>\n" +
+      "Nhiều tài khoản: mỗi dòng 1 tài khoản\n\n" +
+      "<b>📋 Lệnh nhanh:</b>\n" +
+      "/check — Check ngay tại chat\n" +
+      "/bulk — Upload file .txt check hàng loạt\n" +
+      "/activate — Kích hoạt key\n" +
+      "/status — Xem lượt dùng & hết hạn\n\n" +
+      "<i>💡 Mỗi người mới được dùng thử miễn phí 3 lần.</i>"
+    );
+  });
+
   // ── Plain-text message → auto detect key OR credentials ────────────────────
   bot.on("text", async (ctx) => {
     const uid = ctx.from?.id;
@@ -793,6 +903,9 @@ export function createBot(token: string): Telegraf {
 
     // Ignore commands (handled above)
     if (raw.startsWith("/")) return;
+
+    // Ignore reply-keyboard button texts (handled by bot.hears above)
+    if (KEYBOARD_TEXTS.has(raw as typeof BTN[keyof typeof BTN])) return;
 
     // Ignore if user is waiting for bulk file upload
     const session = getSession(uid);
