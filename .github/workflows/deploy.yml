@@ -1,0 +1,40 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            cd /opt/checkgpt
+
+            echo "📥 Pulling latest code..."
+            git pull origin main
+
+            echo "📦 Installing dependencies..."
+            pnpm install --frozen-lockfile
+
+            echo "🔨 Building services..."
+            pnpm --filter @workspace/api-server run build
+            pnpm --filter @workspace/telegram-bot run build
+            pnpm --filter @workspace/admin-dashboard run build 2>/dev/null || true
+
+            echo "🗄️ Running DB migrations..."
+            pnpm --filter @workspace/db run push 2>/dev/null || true
+
+            echo "🔄 Restarting PM2 services..."
+            pm2 restart all --update-env
+
+            echo "✅ Deploy hoàn tất!"
+            pm2 status
