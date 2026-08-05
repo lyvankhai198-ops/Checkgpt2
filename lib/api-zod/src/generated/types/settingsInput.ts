@@ -21,4 +21,9 @@ export interface SettingsInput {
   proPrice?: number;
   basicStockTarget?: number;
   proStockTarget?: number;
+  bankName?: string;
+  bankBin?: string;
+  bankAccount?: string;
+  bankHolder?: string;
+  paymentEnabled?: boolean;
 }

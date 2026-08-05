@@ -1,7 +1,7 @@
 import { Telegraf, Markup, type Context } from "telegraf";
 import {
   checkTrial, useTrial, validateKey, activateKey,
-  useKey, releaseKey, checkSingle, checkBulk, getPrices,
+  useKey, releaseKey, checkSingle, checkBulk, getPrices, createOrder,
   type CheckResult,
 } from "./api.js";
 import {
@@ -592,27 +592,52 @@ export function createBot(token: string): Telegraf {
     );
   });
 
-  bot.action("buy_basic", async (ctx) => {
+  const showPaymentInfo = async (ctx: Parameters<typeof bot.action>[1] extends (ctx: infer C) => unknown ? C : never, plan: "basic" | "pro") => {
     await ctx.answerCbQuery();
     const p = await getPrices();
-    await ctx.replyWithHTML(
-      `💳 <b>Mua gói Basic — ${p.basicPriceFormatted}</b>\n\n` +
-      "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
-      "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
-      "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
-    );
-  });
+    const label = plan === "basic" ? `🟢 Basic — ${p.basicPriceFormatted}` : `🟣 Pro — ${p.proPriceFormatted}`;
 
-  bot.action("buy_pro", async (ctx) => {
-    await ctx.answerCbQuery();
-    const p = await getPrices();
-    await ctx.replyWithHTML(
-      `💳 <b>Mua gói Pro — ${p.proPriceFormatted}</b>\n\n` +
-      "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
-      "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
-      "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
-    );
-  });
+    // Manual payment fallback if payment not configured
+    if (!p.paymentEnabled || !p.bank?.account) {
+      await ctx.replyWithHTML(
+        `💳 <b>Mua gói ${label}</b>\n\n` +
+        "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
+        "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
+        "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+      );
+      return;
+    }
+
+    // Create order
+    const telegramId = String(ctx.from?.id);
+    const username = ctx.from?.username;
+    try {
+      const order = await createOrder(telegramId, plan, username);
+      if (order.error === "payment_not_configured") throw new Error("not configured");
+
+      const caption =
+        `💳 <b>Thanh toán gói ${label}</b>\n\n` +
+        `🏦 Ngân hàng: <b>${order.bank.name}</b>\n` +
+        `💳 Số tài khoản: <code>${order.bank.account}</code>\n` +
+        `👤 Chủ TK: <b>${order.bank.holder}</b>\n` +
+        `💰 Số tiền: <b>${order.amountFormatted}</b>\n` +
+        `📝 Nội dung CK: <code>${order.orderCode}</code>\n\n` +
+        `⚠️ <b>Nhập đúng nội dung chuyển khoản — hệ thống tự giao key sau khi nhận tiền!</b>\n\n` +
+        `⏰ Đơn hàng hết hạn sau 30 phút.`;
+
+      await ctx.replyWithPhoto(order.qrUrl, { caption, parse_mode: "HTML" });
+    } catch {
+      await ctx.replyWithHTML(
+        `💳 <b>Mua gói ${label}</b>\n\n` +
+        "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
+        "Sau khi nhận key, dán vào chat:\n" +
+        "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+      );
+    }
+  };
+
+  bot.action("buy_basic", (ctx) => showPaymentInfo(ctx, "basic"));
+  bot.action("buy_pro",   (ctx) => showPaymentInfo(ctx, "pro"));
 
   bot.action("help_check", async (ctx) => {
     await ctx.answerCbQuery();

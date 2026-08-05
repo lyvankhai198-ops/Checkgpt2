@@ -10,6 +10,7 @@ import { AdminLayout } from './components/layout/AdminLayout';
 import Login from './pages/login';
 import Dashboard from './pages/dashboard';
 import Keys from './pages/keys';
+import Orders from './pages/orders';
 import Users from './pages/users';
 import Logs from './pages/logs';
 import Settings from './pages/settings';
@@ -47,6 +48,12 @@ function Router() {
       <Route path="/keys">
         <ProtectedLayout>
           <Keys />
+        </ProtectedLayout>
+      </Route>
+
+      <Route path="/orders">
+        <ProtectedLayout>
+          <Orders />
         </ProtectedLayout>
       </Route>
       

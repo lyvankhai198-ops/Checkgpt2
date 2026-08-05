@@ -27,6 +27,23 @@ export interface PricesResponse {
   proPrice: number;
   basicPriceFormatted: string;
   proPriceFormatted: string;
+  paymentEnabled?: boolean;
+  bank?: { name: string; bin: string; account: string; holder: string };
+}
+
+export interface OrderResponse {
+  orderId: number;
+  orderCode: string;
+  amount: number;
+  amountFormatted: string;
+  expiresAt: string;
+  qrUrl: string;
+  bank: { name: string; account: string; holder: string };
+  error?: string;
+}
+
+export async function createOrder(telegramId: string, plan: "basic" | "pro", username?: string): Promise<OrderResponse> {
+  return post<OrderResponse>("/api/payment/orders", { telegramId, plan, username });
 }
 
 let _pricesCache: PricesResponse | null = null;

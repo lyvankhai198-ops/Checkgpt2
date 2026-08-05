@@ -27,6 +27,12 @@ const settingsSchema = z.object({
   proPrice: z.coerce.number().min(0).default(99000),
   basicStockTarget: z.coerce.number().min(1).default(50),
   proStockTarget: z.coerce.number().min(1).default(20),
+  // Payment
+  paymentEnabled: z.boolean().default(false),
+  bankName: z.string().optional(),
+  bankBin: z.string().optional(),
+  bankAccount: z.string().optional(),
+  bankHolder: z.string().optional(),
 });
 
 export default function Settings() {
@@ -52,6 +58,11 @@ export default function Settings() {
       proPrice: 99000,
       basicStockTarget: 50,
       proStockTarget: 20,
+      paymentEnabled: false,
+      bankName: "MB Bank",
+      bankBin: "MB",
+      bankAccount: "",
+      bankHolder: "",
     },
   });
 
@@ -70,6 +81,11 @@ export default function Settings() {
         proPrice: data.settings.proPrice ?? 99000,
         basicStockTarget: data.settings.basicStockTarget ?? 50,
         proStockTarget: data.settings.proStockTarget ?? 20,
+        paymentEnabled: (data.settings.paymentEnabled ?? 0) === 1,
+        bankName: data.settings.bankName ?? "MB Bank",
+        bankBin: data.settings.bankBin ?? "MB",
+        bankAccount: data.settings.bankAccount ?? "",
+        bankHolder: data.settings.bankHolder ?? "",
       });
     }
   }, [data, form]);
@@ -257,6 +273,59 @@ export default function Settings() {
                   <FormMessage />
                 </FormItem>
               )} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>💳 Thanh toán tự động (SePay)</CardTitle>
+              <CardDescription>Cấu hình ngân hàng để nhận chuyển khoản và giao key tự động qua SePay webhook.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <FormField control={form.control} name="paymentEnabled" render={({ field }) => (
+                <FormItem className="flex items-center gap-3 space-y-0">
+                  <FormControl>
+                    <input type="checkbox" checked={!!field.value} onChange={e => field.onChange(e.target.checked)} className="w-4 h-4 accent-primary" />
+                  </FormControl>
+                  <FormLabel className="font-normal cursor-pointer">Bật thanh toán tự động</FormLabel>
+                </FormItem>
+              )} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField control={form.control} name="bankName" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tên ngân hàng</FormLabel>
+                    <FormControl><Input placeholder="MB Bank" className="bg-background" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="bankBin" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Mã ngân hàng (VietQR)</FormLabel>
+                    <FormControl><Input placeholder="MB" className="bg-background" {...field} value={field.value ?? ""} /></FormControl>
+                    <p className="text-xs text-muted-foreground">MB, VCB, TCB, ACB, BIDV…</p>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="bankAccount" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Số tài khoản</FormLabel>
+                    <FormControl><Input placeholder="2626288188888" className="bg-background font-mono" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="bankHolder" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tên chủ tài khoản</FormLabel>
+                    <FormControl><Input placeholder="NGUYEN VAN A" className="bg-background uppercase" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-400 space-y-1">
+                <div className="font-medium">⚙️ Cấu hình SePay Webhook:</div>
+                <div>URL webhook: <code className="bg-muted px-1 rounded">/api/payment/webhook</code></div>
+                <div>Thêm API Key SePay vào <strong>Replit Secrets</strong> với tên: <code className="bg-muted px-1 rounded">SEPAY_API_KEY</code></div>
+              </div>
             </CardContent>
           </Card>
 

@@ -10,7 +10,7 @@ import { eq, desc, and, ilike, sql, gte } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   adminsTable, licenseKeysTable, usersTable,
-  usageLogsTable, auditLogsTable, settingsTable,
+  usageLogsTable, auditLogsTable, settingsTable, ordersTable,
   type InsertSettings,
 } from "@workspace/db";
 import { adminAuthMiddleware, signAdminToken } from "../middlewares/adminAuth.js";
@@ -348,6 +348,15 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
   if (basicStockTarget !== undefined) updates.basicStockTarget = Number(basicStockTarget);
   if (proStockTarget !== undefined) updates.proStockTarget = Number(proStockTarget);
 
+  const {
+    bankName, bankBin, bankAccount, bankHolder, paymentEnabled,
+  } = req.body ?? {};
+  if (bankName !== undefined) updates.bankName = bankName;
+  if (bankBin !== undefined) updates.bankBin = bankBin;
+  if (bankAccount !== undefined) updates.bankAccount = bankAccount;
+  if (bankHolder !== undefined) updates.bankHolder = bankHolder;
+  if (paymentEnabled !== undefined) updates.paymentEnabled = paymentEnabled ? 1 : 0;
+
   const upsertValues: InsertSettings = { id: 1, updatedAt: new Date() };
   Object.assign(upsertValues, updates);
   await db
@@ -367,16 +376,10 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
 
 // ── Public prices endpoint (no auth — bot reads this) ────────────────────────
 router.get("/prices", async (_req, res): Promise<void> => {
-  const [settings] = await db.select({
-    basicPrice: settingsTable.basicPrice,
-    proPrice: settingsTable.proPrice,
-    basicStockTarget: settingsTable.basicStockTarget,
-    proStockTarget: settingsTable.proStockTarget,
-  }).from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
+  const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
 
   const basicPrice = settings?.basicPrice ?? 20000;
   const proPrice = settings?.proPrice ?? 99000;
-
   const fmt = (v: number) => v.toLocaleString("vi-VN") + "đ";
 
   res.json({
@@ -386,7 +389,36 @@ router.get("/prices", async (_req, res): Promise<void> => {
     proPriceFormatted: fmt(proPrice),
     basicStockTarget: settings?.basicStockTarget ?? 50,
     proStockTarget: settings?.proStockTarget ?? 20,
+    paymentEnabled: (settings?.paymentEnabled ?? 0) === 1,
+    bank: {
+      name: settings?.bankName ?? "MB Bank",
+      bin: settings?.bankBin ?? "MB",
+      account: settings?.bankAccount ?? "",
+      holder: settings?.bankHolder ?? "",
+    },
   });
+});
+
+// ── Admin orders list ─────────────────────────────────────────────────────────
+router.get("/admin/orders", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const page = Math.max(1, Number(req.query["page"] ?? 1));
+  const limit = Math.min(100, Math.max(1, Number(req.query["limit"] ?? 20)));
+  const status = req.query["status"] as string | undefined;
+  const offset = (page - 1) * limit;
+
+  const whereClause = status && status !== "all"
+    ? eq(ordersTable.status, status as "pending" | "paid" | "delivered" | "failed" | "expired")
+    : undefined;
+
+  const [orders, [{ total }]] = await Promise.all([
+    db.select().from(ordersTable)
+      .where(whereClause)
+      .orderBy(desc(ordersTable.createdAt))
+      .limit(limit).offset(offset),
+    db.select({ total: sql<number>`count(*)` }).from(ordersTable).where(whereClause),
+  ]);
+
+  res.json({ orders, total: Number(total), page, limit });
 });
 
 // ── Auto-stock endpoint ───────────────────────────────────────────────────────

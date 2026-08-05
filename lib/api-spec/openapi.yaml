@@ -348,6 +348,57 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditLogPage"
 
+  /payment/orders:
+    post:
+      operationId: createOrder
+      tags: [public]
+      summary: Create a payment order (called by bot)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderInput"
+      responses:
+        "200":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResponse"
+
+  /payment/webhook:
+    post:
+      operationId: sepayWebhook
+      tags: [public]
+      summary: SePay payment webhook
+      responses:
+        "200":
+          description: Processed
+
+  /admin/orders:
+    get:
+      operationId: listOrders
+      tags: [admin]
+      summary: List payment orders
+      parameters:
+        - in: query
+          name: page
+          schema: { type: number }
+        - in: query
+          name: limit
+          schema: { type: number }
+        - in: query
+          name: status
+          schema: { type: string }
+      responses:
+        "200":
+          description: Orders list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdersEnvelope"
+
   /prices:
     get:
       operationId: getPrices
@@ -709,6 +760,11 @@ components:
         proPrice: { type: ["number", "null"] }
         basicStockTarget: { type: ["number", "null"] }
         proStockTarget: { type: ["number", "null"] }
+        bankName: { type: ["string", "null"] }
+        bankBin: { type: ["string", "null"] }
+        bankAccount: { type: ["string", "null"] }
+        bankHolder: { type: ["string", "null"] }
+        paymentEnabled: { type: ["number", "null"] }
         updatedAt: { type: ["string", "null"] }
 
     SettingsEnvelope:
@@ -732,6 +788,64 @@ components:
         proPrice: { type: number }
         basicStockTarget: { type: number }
         proStockTarget: { type: number }
+        bankName: { type: string }
+        bankBin: { type: string }
+        bankAccount: { type: string }
+        bankHolder: { type: string }
+        paymentEnabled: { type: boolean }
+
+    CreateOrderInput:
+      type: object
+      required: [telegramId, plan]
+      properties:
+        telegramId: { type: string }
+        username: { type: string }
+        plan:
+          type: string
+          enum: [basic, pro]
+
+    OrderResponse:
+      type: object
+      properties:
+        orderId: { type: number }
+        orderCode: { type: string }
+        amount: { type: number }
+        amountFormatted: { type: string }
+        expiresAt: { type: string }
+        qrUrl: { type: string }
+        bank:
+          type: object
+          properties:
+            name: { type: string }
+            account: { type: string }
+            holder: { type: string }
+
+    Order:
+      type: object
+      properties:
+        id: { type: number }
+        telegramId: { type: string }
+        username: { type: ["string", "null"] }
+        plan: { type: string }
+        amount: { type: number }
+        orderCode: { type: string }
+        status: { type: string }
+        keyId: { type: ["number", "null"] }
+        createdAt: { type: string }
+        paidAt: { type: ["string", "null"] }
+        deliveredAt: { type: ["string", "null"] }
+        expiresAt: { type: ["string", "null"] }
+
+    OrdersEnvelope:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        total: { type: number }
+        page: { type: number }
+        limit: { type: number }
 
     PricesResponse:
       type: object

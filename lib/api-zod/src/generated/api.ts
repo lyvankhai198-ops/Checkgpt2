@@ -351,6 +351,66 @@ export const ListAuditLogsResponse = zod.object({
 
 
 /**
+ * @summary Create a payment order (called by bot)
+ */
+export const CreateOrderBody = zod.object({
+  "telegramId": zod.string(),
+  "username": zod.string().optional(),
+  "plan": zod.enum(['basic', 'pro'])
+})
+
+export const CreateOrderResponse = zod.object({
+  "orderId": zod.number().optional(),
+  "orderCode": zod.string().optional(),
+  "amount": zod.number().optional(),
+  "amountFormatted": zod.string().optional(),
+  "expiresAt": zod.string().optional(),
+  "qrUrl": zod.string().optional(),
+  "bank": zod.object({
+  "name": zod.string().optional(),
+  "account": zod.string().optional(),
+  "holder": zod.string().optional()
+}).optional()
+})
+
+
+/**
+ * @summary SePay payment webhook
+ */
+export const SepayWebhookResponse = zod.unknown()
+
+
+/**
+ * @summary List payment orders
+ */
+export const ListOrdersQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListOrdersResponse = zod.object({
+  "orders": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "telegramId": zod.string().optional(),
+  "username": zod.string().nullish(),
+  "plan": zod.string().optional(),
+  "amount": zod.number().optional(),
+  "orderCode": zod.string().optional(),
+  "status": zod.string().optional(),
+  "keyId": zod.number().nullish(),
+  "createdAt": zod.string().optional(),
+  "paidAt": zod.string().nullish(),
+  "deliveredAt": zod.string().nullish(),
+  "expiresAt": zod.string().nullish()
+})).optional(),
+  "total": zod.number().optional(),
+  "page": zod.number().optional(),
+  "limit": zod.number().optional()
+})
+
+
+/**
  * @summary Get current plan prices (no auth required)
  */
 export const GetPricesResponse = zod.object({
@@ -402,6 +462,11 @@ export const GetSettingsResponse = zod.object({
   "proPrice": zod.number().nullish(),
   "basicStockTarget": zod.number().nullish(),
   "proStockTarget": zod.number().nullish(),
+  "bankName": zod.string().nullish(),
+  "bankBin": zod.string().nullish(),
+  "bankAccount": zod.string().nullish(),
+  "bankHolder": zod.string().nullish(),
+  "paymentEnabled": zod.number().nullish(),
   "updatedAt": zod.string().nullish()
 }).optional()
 })
@@ -422,7 +487,12 @@ export const UpdateSettingsBody = zod.object({
   "basicPrice": zod.number().optional(),
   "proPrice": zod.number().optional(),
   "basicStockTarget": zod.number().optional(),
-  "proStockTarget": zod.number().optional()
+  "proStockTarget": zod.number().optional(),
+  "bankName": zod.string().optional(),
+  "bankBin": zod.string().optional(),
+  "bankAccount": zod.string().optional(),
+  "bankHolder": zod.string().optional(),
+  "paymentEnabled": zod.boolean().optional()
 })
 
 export const UpdateSettingsResponse = zod.object({

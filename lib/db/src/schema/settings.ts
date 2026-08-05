@@ -16,6 +16,12 @@ export const settingsTable = pgTable("settings", {
   // Auto-stock targets
   basicStockTarget: integer("basic_stock_target").default(50),
   proStockTarget: integer("pro_stock_target").default(20),
+  // Payment / bank config
+  bankName: text("bank_name").default("MB Bank"),
+  bankBin: text("bank_bin").default("MB"),         // VietQR bank ID
+  bankAccount: text("bank_account"),
+  bankHolder: text("bank_holder"),
+  paymentEnabled: integer("payment_enabled").default(0), // 0=off, 1=on (bool as int)
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

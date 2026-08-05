@@ -33,5 +33,15 @@ export interface SystemSettings {
   /** @nullable */
   proStockTarget?: number | null;
   /** @nullable */
+  bankName?: string | null;
+  /** @nullable */
+  bankBin?: string | null;
+  /** @nullable */
+  bankAccount?: string | null;
+  /** @nullable */
+  bankHolder?: string | null;
+  /** @nullable */
+  paymentEnabled?: number | null;
+  /** @nullable */
   updatedAt?: string | null;
 }

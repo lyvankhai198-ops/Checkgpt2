@@ -309,6 +309,16 @@ export interface SystemSettings {
   /** @nullable */
   proStockTarget?: number | null;
   /** @nullable */
+  bankName?: string | null;
+  /** @nullable */
+  bankBin?: string | null;
+  /** @nullable */
+  bankAccount?: string | null;
+  /** @nullable */
+  bankHolder?: string | null;
+  /** @nullable */
+  paymentEnabled?: number | null;
+  /** @nullable */
   updatedAt?: string | null;
 }
 
@@ -331,6 +341,68 @@ export interface SettingsInput {
   proPrice?: number;
   basicStockTarget?: number;
   proStockTarget?: number;
+  bankName?: string;
+  bankBin?: string;
+  bankAccount?: string;
+  bankHolder?: string;
+  paymentEnabled?: boolean;
+}
+
+export type CreateOrderInputPlan = typeof CreateOrderInputPlan[keyof typeof CreateOrderInputPlan];
+
+
+export const CreateOrderInputPlan = {
+  basic: 'basic',
+  pro: 'pro',
+} as const;
+
+export interface CreateOrderInput {
+  telegramId: string;
+  username?: string;
+  plan: CreateOrderInputPlan;
+}
+
+export type OrderResponseBank = {
+  name?: string;
+  account?: string;
+  holder?: string;
+};
+
+export interface OrderResponse {
+  orderId?: number;
+  orderCode?: string;
+  amount?: number;
+  amountFormatted?: string;
+  expiresAt?: string;
+  qrUrl?: string;
+  bank?: OrderResponseBank;
+}
+
+export interface Order {
+  id?: number;
+  telegramId?: string;
+  /** @nullable */
+  username?: string | null;
+  plan?: string;
+  amount?: number;
+  orderCode?: string;
+  status?: string;
+  /** @nullable */
+  keyId?: number | null;
+  createdAt?: string;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  deliveredAt?: string | null;
+  /** @nullable */
+  expiresAt?: string | null;
+}
+
+export interface OrdersEnvelope {
+  orders?: Order[];
+  total?: number;
+  page?: number;
+  limit?: number;
 }
 
 export interface PricesResponse {
@@ -395,5 +467,11 @@ since?: string;
 export type ListAuditLogsParams = {
 page?: number;
 limit?: number;
+};
+
+export type ListOrdersParams = {
+page?: number;
+limit?: number;
+status?: string;
 };
 

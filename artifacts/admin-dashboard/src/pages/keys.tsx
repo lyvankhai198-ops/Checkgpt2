@@ -533,17 +533,17 @@ export default function Keys() {
                         <Badge
                           variant="outline"
                           className={
-                            key.status === "active"   ? "border-emerald-500/40 text-emerald-400" :
-                            key.status === "inactive" ? "border-sky-500/40 text-sky-400" :
-                            key.status === "locked"   ? "border-amber-500/40 text-amber-400" :
-                            key.status === "expired"  ? "border-muted-foreground/40 text-muted-foreground" :
+                            (key.status as string) === "active"   ? "border-emerald-500/40 text-emerald-400" :
+                            (key.status as string) === "inactive" ? "border-sky-500/40 text-sky-400" :
+                            (key.status as string) === "locked"   ? "border-amber-500/40 text-amber-400" :
+                            (key.status as string) === "expired"  ? "border-muted-foreground/40 text-muted-foreground" :
                             "border-destructive/40 text-destructive"
                           }
                         >
-                          {key.status === "active"   ? "HOẠT ĐỘNG" :
-                           key.status === "inactive" ? "SẴN SÀNG" :
-                           key.status === "locked"   ? "ĐÃ KHÓA" :
-                           key.status === "expired"  ? "HẾT HẠN" : "ĐÃ THU HỒI"}
+                          {(key.status as string) === "active"   ? "HOẠT ĐỘNG" :
+                           (key.status as string) === "inactive" ? "SẴN SÀNG" :
+                           (key.status as string) === "locked"   ? "ĐÃ KHÓA" :
+                           (key.status as string) === "expired"  ? "HẾT HẠN" : "ĐÃ THU HỒI"}
                         </Badge>
                       </TableCell>
                       <TableCell>
