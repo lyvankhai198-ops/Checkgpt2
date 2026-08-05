@@ -9,16 +9,14 @@ servers:
     description: Base API path
 tags:
   - name: health
-    description: Health operations
   - name: checker
-    description: Account checking operations
+  - name: admin
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -32,7 +30,6 @@ paths:
       operationId: checkAccounts
       tags: [checker]
       summary: Check accounts via SSE stream
-      description: Streams results for bulk account/token checks via Server-Sent Events
       requestBody:
         required: true
         content:
@@ -41,7 +38,7 @@ paths:
               $ref: "#/components/schemas/CheckInput"
       responses:
         "200":
-          description: SSE stream of CheckEvent objects
+          description: SSE stream
           content:
             text/event-stream:
               schema:
@@ -66,15 +63,307 @@ paths:
               schema:
                 $ref: "#/components/schemas/CheckResult"
 
+  # ── Admin auth ────────────────────────────────────────────────────────────────
+
+  /admin/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSession"
+        "401":
+          description: Invalid credentials
+
+  /admin/logout:
+    post:
+      operationId: adminLogout
+      tags: [admin]
+      summary: Admin logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+
+  /admin/me:
+    get:
+      operationId: adminMe
+      tags: [admin]
+      summary: Get current admin info
+      responses:
+        "200":
+          description: Current admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProfile"
+        "401":
+          description: Not authenticated
+
+  # ── Dashboard ─────────────────────────────────────────────────────────────────
+
+  /admin/stats:
+    get:
+      operationId: getAdminStats
+      tags: [admin]
+      summary: Dashboard statistics
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  # ── Keys — export BEFORE /:id to avoid route shadowing ───────────────────────
+
+  /admin/keys/export/csv:
+    get:
+      operationId: exportKeysCsv
+      tags: [admin]
+      summary: Export all keys as CSV
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /admin/keys:
+    get:
+      operationId: listKeys
+      tags: [admin]
+      summary: List license keys (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema: { type: number }
+        - name: limit
+          in: query
+          schema: { type: number }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: search
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Keys list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyPage"
+    post:
+      operationId: createKeys
+      tags: [admin]
+      summary: Create one or more license keys
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateKeysInput"
+      responses:
+        "201":
+          description: Created keys
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchKeys"
+
+  /admin/keys/{id}:
+    get:
+      operationId: getKey
+      tags: [admin]
+      summary: Get a single key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateKey
+      tags: [admin]
+      summary: Revoke / lock / unlock / extend a key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyUpdateInput"
+      responses:
+        "200":
+          description: Updated key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyDetail"
+    delete:
+      operationId: deleteKey
+      tags: [admin]
+      summary: Revoke a key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+
+  # ── Users ─────────────────────────────────────────────────────────────────────
+
+  /admin/users:
+    get:
+      operationId: listUsers
+      tags: [admin]
+      summary: List Telegram users (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema: { type: number }
+        - name: limit
+          in: query
+          schema: { type: number }
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+
+  # ── Logs ──────────────────────────────────────────────────────────────────────
+
+  /admin/logs/usage:
+    get:
+      operationId: listUsageLogs
+      tags: [admin]
+      summary: List usage logs (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema: { type: number }
+        - name: limit
+          in: query
+          schema: { type: number }
+        - name: telegram_id
+          in: query
+          schema: { type: string }
+        - name: since
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Usage logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageLogPage"
+
+  /admin/logs/audit:
+    get:
+      operationId: listAuditLogs
+      tags: [admin]
+      summary: List audit logs (paginated)
+      parameters:
+        - name: page
+          in: query
+          schema: { type: number }
+        - name: limit
+          in: query
+          schema: { type: number }
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogPage"
+
+  # ── Settings ──────────────────────────────────────────────────────────────────
+
+  /admin/settings:
+    get:
+      operationId: getSettings
+      tags: [admin]
+      summary: Get system settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsEnvelope"
+    put:
+      operationId: updateSettings
+      tags: [admin]
+      summary: Update system settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResult"
+
 components:
   schemas:
+    # ── Shared ────────────────────────────────────────────────────────────────────
+
     HealthStatus:
       type: object
       properties:
-        status:
-          type: string
-      required:
-        - status
+        status: { type: string }
+      required: [status]
+
+    OkResult:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+
+    # ── Checker ───────────────────────────────────────────────────────────────────
 
     CheckInput:
       type: object
@@ -83,39 +372,266 @@ components:
         mode:
           type: string
           enum: [account, session]
-          description: "account = email|pass|2fa, session = access_token or session cookie"
-        rawText:
-          type: string
-          description: Raw input, one entry per line
-        concurrency:
-          type: number
-          minimum: 1
-          maximum: 10
-          default: 3
+        rawText: { type: string }
+        concurrency: { type: number }
         proxies:
           type: array
-          items:
-            type: string
-          description: "Optional proxy list (http://host:port or http://user:pass@host:port). Rotated round-robin per account."
+          items: { type: string }
 
     CheckResult:
       type: object
       required: [status]
       properties:
-        input:
-          type: ["string", "null"]
-        email:
-          type: ["string", "null"]
+        input: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
         status:
           type: string
           enum: [live, die, deactivated, locked, error]
-        user:
-          type: ["string", "null"]
-        plan:
-          type: ["string", "null"]
-        error:
-          type: ["string", "null"]
-        index:
-          type: ["number", "null"]
-        completed:
-          type: ["number", "null"]
+        user: { type: ["string", "null"] }
+        plan: { type: ["string", "null"] }
+        error: { type: ["string", "null"] }
+        index: { type: ["number", "null"] }
+        completed: { type: ["number", "null"] }
+
+    # ── Admin auth ────────────────────────────────────────────────────────────────
+
+    AdminLoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+
+    AdminSession:
+      type: object
+      required: [ok, username]
+      properties:
+        ok: { type: boolean }
+        username: { type: string }
+
+    AdminProfile:
+      type: object
+      properties:
+        admin:
+          type: object
+          properties:
+            adminId: { type: number }
+            username: { type: string }
+
+    # ── Dashboard ─────────────────────────────────────────────────────────────────
+
+    ChartPoint:
+      type: object
+      required: [date, uses]
+      properties:
+        date: { type: string }
+        uses: { type: number }
+
+    DashboardStats:
+      type: object
+      required: [totalKeys, activeKeys, expiringSoon, expiredKeys, totalUsers, todayUses, usageChart]
+      properties:
+        totalKeys: { type: number }
+        activeKeys: { type: number }
+        expiringSoon: { type: number }
+        expiredKeys: { type: number }
+        totalUsers: { type: number }
+        todayUses: { type: number }
+        usageChart:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartPoint"
+
+    # ── License keys ──────────────────────────────────────────────────────────────
+
+    LicenseKey:
+      type: object
+      required: [id, keyDisplay, status, totalUses, dailyUses, maxConcurrent, concurrentSlots, createdAt, updatedAt]
+      properties:
+        id: { type: number }
+        keyDisplay: { type: string }
+        status:
+          type: string
+          enum: [active, revoked, locked, expired]
+        expiresAt: { type: ["string", "null"] }
+        maxTotalUses: { type: ["number", "null"] }
+        totalUses: { type: number }
+        dailyLimit: { type: ["number", "null"] }
+        dailyUses: { type: number }
+        maxConcurrent: { type: number }
+        concurrentSlots: { type: number }
+        allowedTelegramId: { type: ["string", "null"] }
+        lockToTelegram: { type: boolean }
+        note: { type: ["string", "null"] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    KeyPage:
+      type: object
+      required: [keys, total, page, limit]
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/LicenseKey"
+        total: { type: number }
+        page: { type: number }
+        limit: { type: number }
+
+    KeyDetail:
+      type: object
+      required: [key]
+      properties:
+        key:
+          $ref: "#/components/schemas/LicenseKey"
+
+    CreateKeysInput:
+      type: object
+      properties:
+        count: { type: number }
+        durationMinutes: { type: ["number", "null"] }
+        neverExpires: { type: boolean }
+        maxTotalUses: { type: ["number", "null"] }
+        dailyLimit: { type: ["number", "null"] }
+        maxConcurrent: { type: number }
+        allowedTelegramId: { type: ["string", "null"] }
+        lockToTelegram: { type: boolean }
+        note: { type: ["string", "null"] }
+
+    NewKeyRecord:
+      type: object
+      required: [rawKey, keyDisplay, id]
+      properties:
+        rawKey: { type: string }
+        keyDisplay: { type: string }
+        id: { type: number }
+
+    BatchKeys:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewKeyRecord"
+
+    KeyUpdateInput:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [revoke, lock, unlock, extend, set_expiry]
+        extraMinutes: { type: number }
+        expiresAt: { type: string }
+        note: { type: string }
+
+    # ── Users ─────────────────────────────────────────────────────────────────────
+
+    TelegramUser:
+      type: object
+      required: [id, telegramId, trialCount, createdAt]
+      properties:
+        id: { type: number }
+        telegramId: { type: string }
+        username: { type: ["string", "null"] }
+        firstName: { type: ["string", "null"] }
+        trialCount: { type: number }
+        currentKeyId: { type: ["number", "null"] }
+        lastUsedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    UserPage:
+      type: object
+      required: [users, total, page, limit]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelegramUser"
+        total: { type: number }
+        page: { type: number }
+        limit: { type: number }
+
+    # ── Logs ──────────────────────────────────────────────────────────────────────
+
+    UsageLog:
+      type: object
+      required: [id, action, createdAt]
+      properties:
+        id: { type: number }
+        keyId: { type: ["number", "null"] }
+        telegramId: { type: ["string", "null"] }
+        action: { type: string }
+        ipAddress: { type: ["string", "null"] }
+        errorMessage: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    UsageLogPage:
+      type: object
+      required: [logs, total, page, limit]
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageLog"
+        total: { type: number }
+        page: { type: number }
+        limit: { type: number }
+
+    AuditLog:
+      type: object
+      required: [id, action, createdAt]
+      properties:
+        id: { type: number }
+        adminId: { type: ["number", "null"] }
+        action: { type: string }
+        targetType: { type: ["string", "null"] }
+        targetId: { type: ["string", "null"] }
+        ipAddress: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    AuditLogPage:
+      type: object
+      required: [logs, total, page, limit]
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        total: { type: number }
+        page: { type: number }
+        limit: { type: number }
+
+    # ── Settings ──────────────────────────────────────────────────────────────────
+
+    SystemSettings:
+      type: object
+      properties:
+        id: { type: number }
+        telegramBotToken: { type: ["string", "null"] }
+        timezone: { type: ["string", "null"] }
+        defaultDurationMinutes: { type: ["number", "null"] }
+        defaultMaxUses: { type: ["number", "null"] }
+        defaultDailyLimit: { type: ["number", "null"] }
+        defaultMaxConcurrent: { type: ["number", "null"] }
+        notifyExpiryDays: { type: ["number", "null"] }
+        welcomeMessage: { type: ["string", "null"] }
+        updatedAt: { type: ["string", "null"] }
+
+    SettingsEnvelope:
+      type: object
+      properties:
+        settings:
+          $ref: "#/components/schemas/SystemSettings"
+
+    SettingsInput:
+      type: object
+      properties:
+        telegramBotToken: { type: string }
+        timezone: { type: string }
+        defaultDurationMinutes: { type: number }
+        defaultMaxUses: { type: ["number", "null"] }
+        defaultDailyLimit: { type: ["number", "null"] }
+        defaultMaxConcurrent: { type: number }
+        notifyExpiryDays: { type: number }
+        welcomeMessage: { type: string }

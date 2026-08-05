@@ -9,7 +9,6 @@ import * as zod from 'zod';
 
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -18,19 +17,13 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Streams results for bulk account/token checks via Server-Sent Events
  * @summary Check accounts via SSE stream
  */
-export const checkAccountsBodyConcurrencyDefault = 3;
-export const checkAccountsBodyConcurrencyMax = 10;
-
-
-
 export const CheckAccountsBody = zod.object({
-  "mode": zod.enum(['account', 'session']).describe('account = email|pass|2fa, session = access_token or session cookie'),
-  "rawText": zod.string().describe('Raw input, one entry per line'),
-  "concurrency": zod.number().min(1).max(checkAccountsBodyConcurrencyMax).default(checkAccountsBodyConcurrencyDefault),
-  "proxies": zod.array(zod.string()).optional().describe('Optional proxy list (http:\/\/host:port or http:\/\/user:pass@host:port). Rotated round-robin per account.')
+  "mode": zod.enum(['account', 'session']),
+  "rawText": zod.string(),
+  "concurrency": zod.number().optional(),
+  "proxies": zod.array(zod.string()).optional()
 })
 
 export const CheckAccountsResponse = zod.unknown()
@@ -39,16 +32,11 @@ export const CheckAccountsResponse = zod.unknown()
 /**
  * @summary Check a single account or token
  */
-export const checkSingleBodyConcurrencyDefault = 3;
-export const checkSingleBodyConcurrencyMax = 10;
-
-
-
 export const CheckSingleBody = zod.object({
-  "mode": zod.enum(['account', 'session']).describe('account = email|pass|2fa, session = access_token or session cookie'),
-  "rawText": zod.string().describe('Raw input, one entry per line'),
-  "concurrency": zod.number().min(1).max(checkSingleBodyConcurrencyMax).default(checkSingleBodyConcurrencyDefault),
-  "proxies": zod.array(zod.string()).optional().describe('Optional proxy list (http:\/\/host:port or http:\/\/user:pass@host:port). Rotated round-robin per account.')
+  "mode": zod.enum(['account', 'session']),
+  "rawText": zod.string(),
+  "concurrency": zod.number().optional(),
+  "proxies": zod.array(zod.string()).optional()
 })
 
 export const CheckSingleResponse = zod.object({
@@ -60,6 +48,308 @@ export const CheckSingleResponse = zod.object({
   "error": zod.string().nullish(),
   "index": zod.number().nullish(),
   "completed": zod.number().nullish()
+})
+
+
+/**
+ * @summary Admin login
+ */
+export const AdminLoginBody = zod.object({
+  "username": zod.string(),
+  "password": zod.string()
+})
+
+export const AdminLoginResponse = zod.object({
+  "ok": zod.boolean(),
+  "username": zod.string()
+})
+
+
+/**
+ * @summary Admin logout
+ */
+export const AdminLogoutResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary Get current admin info
+ */
+export const AdminMeResponse = zod.object({
+  "admin": zod.object({
+  "adminId": zod.number().optional(),
+  "username": zod.string().optional()
+}).optional()
+})
+
+
+/**
+ * @summary Dashboard statistics
+ */
+export const GetAdminStatsResponse = zod.object({
+  "totalKeys": zod.number(),
+  "activeKeys": zod.number(),
+  "expiringSoon": zod.number(),
+  "expiredKeys": zod.number(),
+  "totalUsers": zod.number(),
+  "todayUses": zod.number(),
+  "usageChart": zod.array(zod.object({
+  "date": zod.string(),
+  "uses": zod.number()
+}))
+})
+
+
+/**
+ * @summary Export all keys as CSV
+ */
+export const ExportKeysCsvResponse = zod.unknown()
+
+
+/**
+ * @summary List license keys (paginated)
+ */
+export const ListKeysQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "status": zod.coerce.string().optional(),
+  "search": zod.coerce.string().optional()
+})
+
+export const ListKeysResponse = zod.object({
+  "keys": zod.array(zod.object({
+  "id": zod.number(),
+  "keyDisplay": zod.string(),
+  "status": zod.enum(['active', 'revoked', 'locked', 'expired']),
+  "expiresAt": zod.string().nullish(),
+  "maxTotalUses": zod.number().nullish(),
+  "totalUses": zod.number(),
+  "dailyLimit": zod.number().nullish(),
+  "dailyUses": zod.number(),
+  "maxConcurrent": zod.number(),
+  "concurrentSlots": zod.number(),
+  "allowedTelegramId": zod.string().nullish(),
+  "lockToTelegram": zod.boolean().optional(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create one or more license keys
+ */
+export const CreateKeysBody = zod.object({
+  "count": zod.number().optional(),
+  "durationMinutes": zod.number().nullish(),
+  "neverExpires": zod.boolean().optional(),
+  "maxTotalUses": zod.number().nullish(),
+  "dailyLimit": zod.number().nullish(),
+  "maxConcurrent": zod.number().optional(),
+  "allowedTelegramId": zod.string().nullish(),
+  "lockToTelegram": zod.boolean().optional(),
+  "note": zod.string().nullish()
+})
+
+export const CreateKeysResponse = zod.object({
+  "keys": zod.array(zod.object({
+  "rawKey": zod.string(),
+  "keyDisplay": zod.string(),
+  "id": zod.number()
+}))
+})
+
+
+/**
+ * @summary Get a single key
+ */
+export const GetKeyParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetKeyResponse = zod.object({
+  "key": zod.object({
+  "id": zod.number(),
+  "keyDisplay": zod.string(),
+  "status": zod.enum(['active', 'revoked', 'locked', 'expired']),
+  "expiresAt": zod.string().nullish(),
+  "maxTotalUses": zod.number().nullish(),
+  "totalUses": zod.number(),
+  "dailyLimit": zod.number().nullish(),
+  "dailyUses": zod.number(),
+  "maxConcurrent": zod.number(),
+  "concurrentSlots": zod.number(),
+  "allowedTelegramId": zod.string().nullish(),
+  "lockToTelegram": zod.boolean().optional(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Revoke / lock / unlock / extend a key
+ */
+export const UpdateKeyParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateKeyBody = zod.object({
+  "action": zod.enum(['revoke', 'lock', 'unlock', 'extend', 'set_expiry']).optional(),
+  "extraMinutes": zod.number().optional(),
+  "expiresAt": zod.string().optional(),
+  "note": zod.string().optional()
+})
+
+export const UpdateKeyResponse = zod.object({
+  "key": zod.object({
+  "id": zod.number(),
+  "keyDisplay": zod.string(),
+  "status": zod.enum(['active', 'revoked', 'locked', 'expired']),
+  "expiresAt": zod.string().nullish(),
+  "maxTotalUses": zod.number().nullish(),
+  "totalUses": zod.number(),
+  "dailyLimit": zod.number().nullish(),
+  "dailyUses": zod.number(),
+  "maxConcurrent": zod.number(),
+  "concurrentSlots": zod.number(),
+  "allowedTelegramId": zod.string().nullish(),
+  "lockToTelegram": zod.boolean().optional(),
+  "note": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Revoke a key
+ */
+export const DeleteKeyParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteKeyResponse = zod.object({
+  "ok": zod.boolean()
+})
+
+
+/**
+ * @summary List Telegram users (paginated)
+ */
+export const ListUsersQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListUsersResponse = zod.object({
+  "users": zod.array(zod.object({
+  "id": zod.number(),
+  "telegramId": zod.string(),
+  "username": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "trialCount": zod.number(),
+  "currentKeyId": zod.number().nullish(),
+  "lastUsedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary List usage logs (paginated)
+ */
+export const ListUsageLogsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "telegram_id": zod.coerce.string().optional(),
+  "since": zod.coerce.string().optional()
+})
+
+export const ListUsageLogsResponse = zod.object({
+  "logs": zod.array(zod.object({
+  "id": zod.number(),
+  "keyId": zod.number().nullish(),
+  "telegramId": zod.string().nullish(),
+  "action": zod.string(),
+  "ipAddress": zod.string().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary List audit logs (paginated)
+ */
+export const ListAuditLogsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListAuditLogsResponse = zod.object({
+  "logs": zod.array(zod.object({
+  "id": zod.number(),
+  "adminId": zod.number().nullish(),
+  "action": zod.string(),
+  "targetType": zod.string().nullish(),
+  "targetId": zod.string().nullish(),
+  "ipAddress": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Get system settings
+ */
+export const GetSettingsResponse = zod.object({
+  "settings": zod.object({
+  "id": zod.number().optional(),
+  "telegramBotToken": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "defaultDurationMinutes": zod.number().nullish(),
+  "defaultMaxUses": zod.number().nullish(),
+  "defaultDailyLimit": zod.number().nullish(),
+  "defaultMaxConcurrent": zod.number().nullish(),
+  "notifyExpiryDays": zod.number().nullish(),
+  "welcomeMessage": zod.string().nullish(),
+  "updatedAt": zod.string().nullish()
+}).optional()
+})
+
+
+/**
+ * @summary Update system settings
+ */
+export const UpdateSettingsBody = zod.object({
+  "telegramBotToken": zod.string().optional(),
+  "timezone": zod.string().optional(),
+  "defaultDurationMinutes": zod.number().optional(),
+  "defaultMaxUses": zod.number().nullish(),
+  "defaultDailyLimit": zod.number().nullish(),
+  "defaultMaxConcurrent": zod.number().optional(),
+  "notifyExpiryDays": zod.number().optional(),
+  "welcomeMessage": zod.string().optional()
+})
+
+export const UpdateSettingsResponse = zod.object({
+  "ok": zod.boolean()
 })
 
 

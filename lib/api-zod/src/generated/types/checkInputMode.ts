@@ -6,9 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * account = email|pass|2fa, session = access_token or session cookie
- */
 export type CheckInputMode = typeof CheckInputMode[keyof typeof CheckInputMode];
 
 

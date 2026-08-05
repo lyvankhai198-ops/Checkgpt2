@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/admin-dashboard/"
+title = "Admin Dashboard"
+description = "Dark-themed admin dashboard for managing GPT Checker license keys, users, usage logs, and system settings. Secured with JWT auth via httpOnly cookie. Includes an overview with Recharts usage graph, full key CRUD (create batch, revoke, lock/unlock, extend, CSV export), user table, audit logs with filters, and settings form."
+version = "1.0.0"
+id = "artifacts/admin-dashboard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/admin-dashboard/" ]
+localPort = 22133
+
+[services.development]
+run = "pnpm --filter @workspace/admin-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/admin-dashboard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/admin-dashboard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22133"
+BASE_PATH = "/admin-dashboard/"

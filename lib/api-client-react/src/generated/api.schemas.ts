@@ -9,9 +9,10 @@ export interface HealthStatus {
   status: string;
 }
 
-/**
- * account = email|pass|2fa, session = access_token or session cookie
- */
+export interface OkResult {
+  ok: boolean;
+}
+
 export type CheckInputMode = typeof CheckInputMode[keyof typeof CheckInputMode];
 
 
@@ -21,16 +22,9 @@ export const CheckInputMode = {
 } as const;
 
 export interface CheckInput {
-  /** account = email|pass|2fa, session = access_token or session cookie */
   mode: CheckInputMode;
-  /** Raw input, one entry per line */
   rawText: string;
-  /**
-     * @minimum 1
-     * @maximum 10
-     */
   concurrency?: number;
-  /** Optional proxy list (http://host:port or http://user:pass@host:port). Rotated round-robin per account. */
   proxies?: string[];
 }
 
@@ -62,4 +56,254 @@ export interface CheckResult {
   /** @nullable */
   completed?: number | null;
 }
+
+export interface AdminLoginInput {
+  username: string;
+  password: string;
+}
+
+export interface AdminSession {
+  ok: boolean;
+  username: string;
+}
+
+export type AdminProfileAdmin = {
+  adminId?: number;
+  username?: string;
+};
+
+export interface AdminProfile {
+  admin?: AdminProfileAdmin;
+}
+
+export interface ChartPoint {
+  date: string;
+  uses: number;
+}
+
+export interface DashboardStats {
+  totalKeys: number;
+  activeKeys: number;
+  expiringSoon: number;
+  expiredKeys: number;
+  totalUsers: number;
+  todayUses: number;
+  usageChart: ChartPoint[];
+}
+
+export type LicenseKeyStatus = typeof LicenseKeyStatus[keyof typeof LicenseKeyStatus];
+
+
+export const LicenseKeyStatus = {
+  active: 'active',
+  revoked: 'revoked',
+  locked: 'locked',
+  expired: 'expired',
+} as const;
+
+export interface LicenseKey {
+  id: number;
+  keyDisplay: string;
+  status: LicenseKeyStatus;
+  /** @nullable */
+  expiresAt?: string | null;
+  /** @nullable */
+  maxTotalUses?: number | null;
+  totalUses: number;
+  /** @nullable */
+  dailyLimit?: number | null;
+  dailyUses: number;
+  maxConcurrent: number;
+  concurrentSlots: number;
+  /** @nullable */
+  allowedTelegramId?: string | null;
+  lockToTelegram?: boolean;
+  /** @nullable */
+  note?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KeyPage {
+  keys: LicenseKey[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface KeyDetail {
+  key: LicenseKey;
+}
+
+export interface CreateKeysInput {
+  count?: number;
+  /** @nullable */
+  durationMinutes?: number | null;
+  neverExpires?: boolean;
+  /** @nullable */
+  maxTotalUses?: number | null;
+  /** @nullable */
+  dailyLimit?: number | null;
+  maxConcurrent?: number;
+  /** @nullable */
+  allowedTelegramId?: string | null;
+  lockToTelegram?: boolean;
+  /** @nullable */
+  note?: string | null;
+}
+
+export interface NewKeyRecord {
+  rawKey: string;
+  keyDisplay: string;
+  id: number;
+}
+
+export interface BatchKeys {
+  keys: NewKeyRecord[];
+}
+
+export type KeyUpdateInputAction = typeof KeyUpdateInputAction[keyof typeof KeyUpdateInputAction];
+
+
+export const KeyUpdateInputAction = {
+  revoke: 'revoke',
+  lock: 'lock',
+  unlock: 'unlock',
+  extend: 'extend',
+  set_expiry: 'set_expiry',
+} as const;
+
+export interface KeyUpdateInput {
+  action?: KeyUpdateInputAction;
+  extraMinutes?: number;
+  expiresAt?: string;
+  note?: string;
+}
+
+export interface TelegramUser {
+  id: number;
+  telegramId: string;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  firstName?: string | null;
+  trialCount: number;
+  /** @nullable */
+  currentKeyId?: number | null;
+  /** @nullable */
+  lastUsedAt?: string | null;
+  createdAt: string;
+}
+
+export interface UserPage {
+  users: TelegramUser[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface UsageLog {
+  id: number;
+  /** @nullable */
+  keyId?: number | null;
+  /** @nullable */
+  telegramId?: string | null;
+  action: string;
+  /** @nullable */
+  ipAddress?: string | null;
+  /** @nullable */
+  errorMessage?: string | null;
+  createdAt: string;
+}
+
+export interface UsageLogPage {
+  logs: UsageLog[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AuditLog {
+  id: number;
+  /** @nullable */
+  adminId?: number | null;
+  action: string;
+  /** @nullable */
+  targetType?: string | null;
+  /** @nullable */
+  targetId?: string | null;
+  /** @nullable */
+  ipAddress?: string | null;
+  createdAt: string;
+}
+
+export interface AuditLogPage {
+  logs: AuditLog[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface SystemSettings {
+  id?: number;
+  /** @nullable */
+  telegramBotToken?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  defaultDurationMinutes?: number | null;
+  /** @nullable */
+  defaultMaxUses?: number | null;
+  /** @nullable */
+  defaultDailyLimit?: number | null;
+  /** @nullable */
+  defaultMaxConcurrent?: number | null;
+  /** @nullable */
+  notifyExpiryDays?: number | null;
+  /** @nullable */
+  welcomeMessage?: string | null;
+  /** @nullable */
+  updatedAt?: string | null;
+}
+
+export interface SettingsEnvelope {
+  settings?: SystemSettings;
+}
+
+export interface SettingsInput {
+  telegramBotToken?: string;
+  timezone?: string;
+  defaultDurationMinutes?: number;
+  /** @nullable */
+  defaultMaxUses?: number | null;
+  /** @nullable */
+  defaultDailyLimit?: number | null;
+  defaultMaxConcurrent?: number;
+  notifyExpiryDays?: number;
+  welcomeMessage?: string;
+}
+
+export type ListKeysParams = {
+page?: number;
+limit?: number;
+status?: string;
+search?: string;
+};
+
+export type ListUsersParams = {
+page?: number;
+limit?: number;
+};
+
+export type ListUsageLogsParams = {
+page?: number;
+limit?: number;
+telegram_id?: string;
+since?: string;
+};
+
+export type ListAuditLogsParams = {
+page?: number;
+limit?: number;
+};
 

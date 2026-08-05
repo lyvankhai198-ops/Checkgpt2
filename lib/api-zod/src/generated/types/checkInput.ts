@@ -8,15 +8,8 @@
 import type { CheckInputMode } from './checkInputMode';
 
 export interface CheckInput {
-  /** account = email|pass|2fa, session = access_token or session cookie */
   mode: CheckInputMode;
-  /** Raw input, one entry per line */
   rawText: string;
-  /**
-     * @minimum 1
-     * @maximum 10
-     */
   concurrency?: number;
-  /** Optional proxy list (http://host:port or http://user:pass@host:port). Rotated round-robin per account. */
   proxies?: string[];
 }
