@@ -449,10 +449,11 @@ export default function Keys() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả</SelectItem>
-                <SelectItem value="active">Hoạt động</SelectItem>
-                <SelectItem value="locked">Đã khóa</SelectItem>
-                <SelectItem value="expired">Hết hạn</SelectItem>
-                <SelectItem value="revoked">Đã thu hồi</SelectItem>
+                <SelectItem value="inactive">🔵 Sẵn sàng</SelectItem>
+                <SelectItem value="active">🟢 Hoạt động</SelectItem>
+                <SelectItem value="locked">🟡 Đã khóa</SelectItem>
+                <SelectItem value="expired">⚫ Hết hạn</SelectItem>
+                <SelectItem value="revoked">🔴 Đã thu hồi</SelectItem>
               </SelectContent>
             </Select>
             <Select value={planFilter} onValueChange={setPlanFilter}>
@@ -530,20 +531,19 @@ export default function Keys() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={
-                            key.status === "active" ? "default" :
-                            key.status === "locked" ? "secondary" :
-                            key.status === "expired" ? "outline" : "destructive"
-                          }
+                          variant="outline"
                           className={
-                            key.status === "active" ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20" :
-                            key.status === "locked" ? "bg-amber-500/10 text-amber-500 hover:bg-amber-500/20" :
-                            key.status === "revoked" ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : ""
+                            key.status === "active"   ? "border-emerald-500/40 text-emerald-400" :
+                            key.status === "inactive" ? "border-sky-500/40 text-sky-400" :
+                            key.status === "locked"   ? "border-amber-500/40 text-amber-400" :
+                            key.status === "expired"  ? "border-muted-foreground/40 text-muted-foreground" :
+                            "border-destructive/40 text-destructive"
                           }
                         >
-                          {key.status === "active" ? "HOẠT ĐỘNG" :
-                           key.status === "locked" ? "ĐÃ KHÓA" :
-                           key.status === "expired" ? "HẾT HẠN" : "ĐÃ THU HỒI"}
+                          {key.status === "active"   ? "HOẠT ĐỘNG" :
+                           key.status === "inactive" ? "SẴN SÀNG" :
+                           key.status === "locked"   ? "ĐÃ KHÓA" :
+                           key.status === "expired"  ? "HẾT HẠN" : "ĐÃ THU HỒI"}
                         </Badge>
                       </TableCell>
                       <TableCell>
