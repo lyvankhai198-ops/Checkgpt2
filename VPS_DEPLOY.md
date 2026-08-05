@@ -91,34 +91,7 @@ pnpm --filter @workspace/telegram-bot run build
 ## 6. Khởi chạy bằng PM2
 
 ```bash
-# Tạo file cấu hình PM2
-cat > ecosystem.config.cjs << 'EOF'
-module.exports = {
-  apps: [
-    {
-      name: "api-server",
-      cwd: "./artifacts/api-server",
-      script: "dist/index.js",
-      env: { NODE_ENV: "production", PORT: 3001 },
-    },
-    {
-      name: "telegram-bot",
-      cwd: "./artifacts/telegram-bot",
-      script: "dist/index.js",
-      env: { NODE_ENV: "production" },
-    },
-    {
-      name: "admin-dashboard",
-      cwd: "./artifacts/admin-dashboard",
-      script: "npx",
-      args: "serve dist -p 3002",
-      env: { NODE_ENV: "production" },
-    },
-  ],
-};
-EOF
-
-# Khởi chạy
+# File ecosystem.config.cjs đã có sẵn trong repo, chỉ cần chạy:
 pm2 start ecosystem.config.cjs
 
 # Tự khởi động khi reboot VPS

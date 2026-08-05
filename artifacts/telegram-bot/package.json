@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx --tsconfig tsconfig.json src/index.ts",
+    "build": "node ./build.mjs",
+    "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -13,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "esbuild": "0.27.3",
     "tsx": "catalog:",
     "typescript": "^5.8.3"
   }
