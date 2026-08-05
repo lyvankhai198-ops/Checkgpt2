@@ -1,0 +1,1 @@
+- [VPS Production Setup](vps-production.md) — VPS 103.180.138.203, deploy flow via GitHub Actions SSH, healthz at /api/healthz, builds to .mjs, Node 22+ required
