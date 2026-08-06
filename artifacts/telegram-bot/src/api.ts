@@ -96,6 +96,7 @@ export interface PricesResponse {
   proPriceFormatted: string;
   paymentEnabled?: boolean;
   bank?: { name: string; bin: string; account: string; holder: string };
+  usdt?: { wallet: string; rateVnd: number };
 }
 
 export interface OrderResponse {
@@ -111,6 +112,17 @@ export interface OrderResponse {
 
 export async function createOrder(telegramId: string, plan: string, username?: string): Promise<OrderResponse> {
   return post<OrderResponse>("/api/payment/orders", { telegramId, plan, username });
+}
+
+export async function saveUserLanguage(telegramId: string, language: "vi" | "en"): Promise<void> {
+  try { await post<unknown>("/api/users/language", { telegramId, language }); } catch { /* non-critical */ }
+}
+
+export async function getUserLanguage(telegramId: string): Promise<"vi" | "en" | null> {
+  try {
+    const r = await get<{ language: "vi" | "en" | null }>(`/api/users/language?telegramId=${encodeURIComponent(telegramId)}`);
+    return r.language;
+  } catch { return null; }
 }
 
 export async function saveOrderQrMessageId(orderId: number, messageId: number): Promise<void> {

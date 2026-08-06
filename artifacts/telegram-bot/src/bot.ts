@@ -2,7 +2,7 @@ import { Telegraf, Markup, type Context } from "telegraf";
 import {
   checkTrial, useTrial, validateKey, activateKey,
   useKey, useKeyById, releaseKey, checkSingle, checkBulk, getPrices, createOrder, saveOrderQrMessageId,
-  getPlans, fmtPlanPrice, getCurrentUserKey,
+  getPlans, fmtPlanPrice, getCurrentUserKey, saveUserLanguage, getUserLanguage,
   type CheckResult, type ValidateResponse, type PlanConfig, type UserCurrentKeyResponse,
 } from "./api.js";
 import {
@@ -10,6 +10,7 @@ import {
   parseCredentials, maskCred, credToLine,
 } from "./utils.js";
 import { getSession, setSession } from "./store.js";
+import { l, type Lang } from "./i18n.js";
 
 const TRIAL_LIMIT = 3;
 const limiter = new RateLimiter(8, 60_000); // 8 requests/min per user
@@ -124,19 +125,13 @@ async function resolveAccess(ctx: Context): Promise<
     if (use.allowed) {
       const remaining = use.remaining;
       if (remaining === 0) {
-        // Last trial use — proactively show buy options
+        const lang: Lang = getSession(uid).lang ?? "vi";
         const plans = await getPlans();
         const enabled = plans.filter(p => p.enabled);
         await ctx.replyWithHTML(
-          `✅ <b>Đây là lần dùng thử cuối (${TRIAL_LIMIT}/${TRIAL_LIMIT}).</b>\n\n` +
-          `Mua gói để tiếp tục check không giới hạn sau lần này 👇`,
+          l(lang, "trialLastUse", { limit: String(TRIAL_LIMIT) }),
           enabled.length > 0
-            ? Markup.inlineKeyboard(
-                enabled.map(p => [Markup.button.callback(
-                  `${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`,
-                  `plan_${p.slug}`
-                )])
-              )
+            ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
             : undefined
         );
       }
@@ -145,13 +140,10 @@ async function resolveAccess(ctx: Context): Promise<
   }
 
   // No trial left, no key
-  await ctx.reply(
-    `⛔ Bạn đã dùng hết ${TRIAL_LIMIT} lần thử miễn phí.\n\n` +
-    "Nhập /activate <key> để kích hoạt key.\n" +
-    "Hoặc nhấn nút bên dưới để mua key.",
-    Markup.inlineKeyboard([
-      [Markup.button.callback("🛒 Mua Key", "buy_key")],
-    ])
+  const lang2: Lang = getSession(uid).lang ?? "vi";
+  await ctx.replyWithHTML(
+    l(lang2, "trialExhausted", { limit: String(TRIAL_LIMIT) }),
+    Markup.inlineKeyboard([[Markup.button.callback(l(lang2, "buyBtn"), "buy_key")]])
   );
   return { allowed: false };
 }
@@ -344,9 +336,9 @@ async function handleCredentialInput(ctx: Context, raw: string) {
   }
 }
 
-// ─── Persistent Reply Keyboard ───────────────────────────────────────────────
+// ─── Bilingual Button Labels ──────────────────────────────────────────────────
 
-const BTN = {
+const BTN_VI = {
   CHECK:    "🔍 Check tài khoản",
   STATUS:   "📊 Trạng thái Key",
   ACTIVATE: "🔑 Kích hoạt Key",
@@ -356,20 +348,29 @@ const BTN = {
   TRY:      "🎁 Dùng thử miễn phí",
 } as const;
 
-/** Texts that belong to the reply keyboard — skip credential parsing */
-const KEYBOARD_TEXTS = new Set(Object.values(BTN));
+const BTN_EN = {
+  CHECK:    "🔍 Check Account",
+  STATUS:   "📊 Key Status",
+  ACTIVATE: "🔑 Activate Key",
+  BUY:      "🛒 Buy Key",
+  BULK:     "📦 Bulk Check",
+  HELP:     "📖 Help",
+  TRY:      "🎁 Free Trial",
+} as const;
 
-/** Full menu — for users with an active key or returning customers */
-const MAIN_KEYBOARD = Markup.keyboard([
-  [BTN.CHECK,    BTN.STATUS],
-  [BTN.ACTIVATE, BTN.BUY],
-  [BTN.BULK,     BTN.HELP],
-]).resize();
+/** All keyboard texts (both languages) — skip credential parsing */
+const KEYBOARD_TEXTS = new Set([...Object.values(BTN_VI), ...Object.values(BTN_EN)]);
 
-/** Trial menu — only shown to new users who still have trial uses */
-const TRIAL_KEYBOARD = Markup.keyboard([
-  [BTN.TRY],
-]).resize();
+function BTN(lang: Lang) { return lang === "en" ? BTN_EN : BTN_VI; }
+
+/** Full menus */
+const MAIN_KB_VI   = Markup.keyboard([[BTN_VI.CHECK, BTN_VI.STATUS], [BTN_VI.ACTIVATE, BTN_VI.BUY], [BTN_VI.BULK, BTN_VI.HELP]]).resize();
+const MAIN_KB_EN   = Markup.keyboard([[BTN_EN.CHECK, BTN_EN.STATUS], [BTN_EN.ACTIVATE, BTN_EN.BUY], [BTN_EN.BULK, BTN_EN.HELP]]).resize();
+const TRIAL_KB_VI  = Markup.keyboard([[BTN_VI.TRY]]).resize();
+const TRIAL_KB_EN  = Markup.keyboard([[BTN_EN.TRY]]).resize();
+
+function mainKeyboard(lang: Lang)  { return lang === "en" ? MAIN_KB_EN  : MAIN_KB_VI;  }
+function trialKeyboard(lang: Lang) { return lang === "en" ? TRIAL_KB_EN : TRIAL_KB_VI; }
 
 // ─── Bot setup ────────────────────────────────────────────────────────────────
 
@@ -384,13 +385,28 @@ export function createBot(token: string): Telegraf {
     const telegramId = String(uid);
     const session = getSession(uid);
 
+    // Resolve language: session → DB → null (need to select)
+    let lang: Lang | null = session.lang ?? null;
+    if (!lang) {
+      lang = await getUserLanguage(telegramId);
+      if (lang) setSession(uid, { lang });
+    }
+
+    // No language selected yet → show selector (first ever /start)
+    if (!lang) {
+      await ctx.replyWithHTML(
+        "🌐 <b>Choose language / Chọn ngôn ngữ:</b>",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("🇻🇳 Tiếng Việt", "lang_vi"),
+           Markup.button.callback("🇬🇧 English",    "lang_en")],
+        ])
+      );
+      return;
+    }
+
     // Phase 3A: Has active key in session → full menu
     if (session.activeKey || session.activeKeyId) {
-      await ctx.replyWithHTML(
-        `👋 Chào lại <b>${escHtml(name)}</b>!\n\n` +
-        `Key của bạn đang hoạt động. Dùng menu bên dưới để check tài khoản.`,
-        MAIN_KEYBOARD
-      );
+      await ctx.replyWithHTML(l(lang, "welcomeBackKey", { name: escHtml(name) }), mainKeyboard(lang));
       return;
     }
 
@@ -399,11 +415,8 @@ export function createBot(token: string): Telegraf {
     // Phase 1: Still has trial → trial keyboard only
     if (trial.hasTrialLeft) {
       await ctx.replyWithHTML(
-        `👋 Chào <b>${escHtml(name)}</b>! Tôi là <b>GPT Checker Bot</b> 🤖\n\n` +
-        `Tool kiểm tra tài khoản ChatGPT nhanh nhất Việt Nam.\n\n` +
-        `🎁 Bạn có <b>${trial.remaining}/${TRIAL_LIMIT}</b> lần dùng thử miễn phí.\n\n` +
-        `Dán <code>email|password|2fa</code> vào ô chat để check ngay!`,
-        TRIAL_KEYBOARD
+        l(lang, "welcomeNew", { name: escHtml(name), remaining: String(trial.remaining), limit: String(TRIAL_LIMIT) }),
+        trialKeyboard(lang)
       );
       return;
     }
@@ -413,49 +426,39 @@ export function createBot(token: string): Telegraf {
     const isReturning = current?.keyId != null;
 
     if (isReturning) {
-      // Restore session pointer so they can use existing key
       setSession(uid, { activeKeyId: current!.keyId, activeKeyDisplay: current!.keyDisplay });
-      await ctx.replyWithHTML(
-        `👋 Chào lại <b>${escHtml(name)}</b>!\n\n` +
-        `Key của bạn đã hết hạn hoặc cần kích hoạt lại.\n` +
-        `Mua gói mới hoặc nhập key để tiếp tục.`,
-        MAIN_KEYBOARD
-      );
+      await ctx.replyWithHTML(l(lang, "welcomeBackExpired", { name: escHtml(name) }), mainKeyboard(lang));
       return;
     }
 
-    // Phase 2: Trial exhausted, never bought → show buy inline (no reply keyboard)
+    // Phase 2: Trial exhausted, never bought → inline buy (no reply keyboard)
     const plans = await getPlans();
     const enabled = plans.filter(p => p.enabled);
     await ctx.replyWithHTML(
-      `⚡ <b>Bạn đã dùng hết ${TRIAL_LIMIT} lần thử miễn phí!</b>\n\n` +
-      `Mua gói để tiếp tục kiểm tra không giới hạn 👇`,
+      l(lang, "welcomeExhausted", { limit: String(TRIAL_LIMIT) }),
       enabled.length > 0
-        ? Markup.inlineKeyboard(
-            enabled.map(p => [Markup.button.callback(
-              `${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`,
-              `plan_${p.slug}`
-            )])
-          )
-        : Markup.inlineKeyboard([[Markup.button.callback("📞 Liên hệ admin", "contact_admin")]])
+        ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
+        : Markup.inlineKeyboard([[Markup.button.callback(l(lang, "contactAdmin"), "contact_admin")]])
     );
   });
 
   // ── /help ───────────────────────────────────────────────────────────────────
   bot.help(async (ctx) => {
+    const lang = getLang(ctx.from.id);
     await ctx.replyWithHTML(
-      "<b>📖 Hướng dẫn sử dụng</b>\n\n" +
-      "<b>✨ Không cần dùng lệnh — dán thẳng vào chat:</b>\n\n" +
-      "🔑 <b>Kích hoạt key:</b>\n" +
-      "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
-      "🔍 <b>Check tài khoản:</b>\n" +
-      "<code>email|password</code>\n" +
-      "<code>email|password|TOTP_SECRET</code>\n" +
-      "Nhiều tài khoản: mỗi dòng 1 tài khoản\n\n" +
-      "<b>Lệnh bổ sung:</b>\n" +
-      "• /bulk — Upload file .txt check hàng loạt\n" +
-      "• /status — Xem trạng thái key\n\n" +
-      "<b>Lưu ý:</b> Mỗi người dùng mới được dùng thử miễn phí 3 lần."
+      l(lang, "helpText", { limit: String(TRIAL_LIMIT) }),
+      Markup.inlineKeyboard([[Markup.button.callback(l(lang, "langBtn"), "show_lang_selector")]])
+    );
+  });
+
+  // ── /lang ────────────────────────────────────────────────────────────────────
+  bot.command("lang", async (ctx) => {
+    await ctx.replyWithHTML(
+      "🌐 <b>Choose language / Chọn ngôn ngữ:</b>",
+      Markup.inlineKeyboard([[
+        Markup.button.callback("🇻🇳 Tiếng Việt", "lang_vi"),
+        Markup.button.callback("🇬🇧 English",    "lang_en"),
+      ]])
     );
   });
 
@@ -627,7 +630,7 @@ export function createBot(token: string): Telegraf {
         "Dán <code>email|password</code> vào chat để bắt đầu check ngay!",
       ];
       // Switch to full menu after successful activation
-      await ctx.replyWithHTML(lines.join("\n"), MAIN_KEYBOARD);
+      await ctx.replyWithHTML(lines.join("\n"), mainKeyboard(getLang(uid)));
     } else {
       const reasons: Record<string, string> = {
         not_found: "❌ Key không tồn tại hoặc đã nhập sai.",
@@ -794,41 +797,83 @@ export function createBot(token: string): Telegraf {
 
   bot.action("buy_key", async (ctx) => {
     await ctx.answerCbQuery();
+    const lang: Lang = getSession((ctx.from as any)?.id).lang ?? "vi";
     const plans = await getPlans();
     const enabled = plans.filter(p => p.enabled);
-    if (enabled.length === 0) {
-      await ctx.replyWithHTML("⚠️ Hiện tại chưa có gói nào đang mở bán. Vui lòng liên hệ admin.");
-      return;
-    }
+    if (enabled.length === 0) { await ctx.replyWithHTML(l(lang, "buyNoPlan")); return; }
     await ctx.replyWithHTML(
-      "🛒 <b>Chọn gói phù hợp với bạn:</b>",
-      Markup.inlineKeyboard(
-        enabled.map(p => [Markup.button.callback(
-          `${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`,
-          `plan_${p.slug}`
-        )])
-      )
+      l(lang, "buyHeader"),
+      Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
+    );
+  });
+
+  // Show/hide language selector from Help button
+  bot.action("show_lang_selector", async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.replyWithHTML("🌐 <b>Choose language / Chọn ngôn ngữ:</b>",
+      Markup.inlineKeyboard([[Markup.button.callback("🇻🇳 Tiếng Việt", "lang_vi"), Markup.button.callback("🇬🇧 English", "lang_en")]])
     );
   });
 
   // Helper: show plan detail
   async function showPlanDetail(ctx: Context, slug: string) {
     await (ctx as any).answerCbQuery();
+    const lang: Lang = getSession((ctx.from as any)?.id).lang ?? "vi";
     const plans = await getPlans();
     const plan = plans.find(p => p.slug === slug);
     if (!plan || !plan.enabled) {
-      await ctx.reply("⚠️ Gói này hiện không khả dụng.");
+      await ctx.reply(lang === "en" ? "⚠️ This plan is not available." : "⚠️ Gói này hiện không khả dụng.");
       return;
     }
     await ctx.replyWithHTML(
-      `${plan.emoji} <b>Gói ${plan.name} — ${fmtPlanPrice(plan.price)}</b>\n\n` +
-      plan.description,
+      `${plan.emoji} <b>${plan.name} — ${fmtPlanPrice(plan.price)}</b>\n\n${plan.description}`,
       Markup.inlineKeyboard([
-        [Markup.button.callback(`💳 Mua gói ${plan.name}`, `buy_${slug}`)],
-        [Markup.button.callback("⬅️ Quay lại", "buy_key")],
+        [Markup.button.callback(l(lang, "buyNow", { name: plan.name }), `buy_${slug}`)],
+        [Markup.button.callback(l(lang, "buyBack"), "buy_key")],
       ])
     );
   }
+
+  // ── Language selection actions ────────────────────────────────────────────────
+  async function applyLang(ctx: any, lang: Lang) {
+    await ctx.answerCbQuery();
+    const uid = ctx.from?.id;
+    const telegramId = String(uid);
+    setSession(uid, { lang });
+    await saveUserLanguage(telegramId, lang);
+    const name = ctx.from?.first_name ?? (lang === "en" ? "you" : "bạn");
+    await ctx.replyWithHTML(l(lang, "langChanged"), { reply_markup: undefined });
+
+    // Now proceed with normal /start flow
+    const session = getSession(uid);
+    const trial = await checkTrial(telegramId);
+    if (session.activeKey || session.activeKeyId) {
+      await ctx.replyWithHTML(l(lang, "welcomeBackKey", { name: escHtml(name) }), mainKeyboard(lang));
+    } else if (trial.hasTrialLeft) {
+      await ctx.replyWithHTML(
+        l(lang, "welcomeNew", { name: escHtml(name), remaining: String(trial.remaining), limit: String(TRIAL_LIMIT) }),
+        trialKeyboard(lang)
+      );
+    } else {
+      const current = await getCurrentUserKey(telegramId).catch(() => null);
+      if (current?.keyId) {
+        setSession(uid, { activeKeyId: current.keyId, activeKeyDisplay: current.keyDisplay });
+        await ctx.replyWithHTML(l(lang, "welcomeBackExpired", { name: escHtml(name) }), mainKeyboard(lang));
+      } else {
+        const plans = await getPlans();
+        const enabled = plans.filter(p => p.enabled);
+        await ctx.replyWithHTML(
+          l(lang, "welcomeExhausted", { limit: String(TRIAL_LIMIT) }),
+          enabled.length > 0
+            ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
+            : Markup.inlineKeyboard([[Markup.button.callback(l(lang, "contactAdmin"), "contact_admin")]])
+        );
+      }
+    }
+  }
+
+  bot.action("lang_vi", (ctx) => applyLang(ctx, "vi"));
+  bot.action("lang_en", (ctx) => applyLang(ctx, "en"));
 
   // Dynamic plan detail handler — supports any slug (basic, pro, vip, etc.)
   bot.action(/^plan_(.+)$/, (ctx) => showPlanDetail(ctx, (ctx as any).match[1]));
@@ -836,6 +881,8 @@ export function createBot(token: string): Telegraf {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const showPaymentInfo = async (ctx: any, slug: string) => {
     await ctx.answerCbQuery();
+    const uid  = ctx.from?.id;
+    const lang: Lang = getSession(uid).lang ?? "vi";
     const plans = await getPlans();
     const planCfg = plans.find(pl => pl.slug === slug);
 
@@ -846,46 +893,42 @@ export function createBot(token: string): Telegraf {
 
     const telegramId = String(ctx.from?.id);
     const username   = ctx.from?.username;
+
+    // For English users with USDT wallet configured → show USDT payment (manual)
+    const p = await getPrices();
+    if (lang === "en" && p.usdt?.wallet) {
+      try {
+        const order = await createOrder(telegramId, slug, username);
+        if (order.error) throw new Error(order.error);
+        const usdtAmount = (order.amount / (p.usdt.rateVnd || 25000)).toFixed(2);
+        const rate = (p.usdt.rateVnd || 25000).toLocaleString("vi-VN");
+        await ctx.replyWithHTML(l(lang, "paymentUsdt", {
+          label, usdtAmount, wallet: p.usdt.wallet, orderCode: order.orderCode, rate,
+        }));
+      } catch {
+        await ctx.replyWithHTML(l(lang, "paymentNoConfig", { label }));
+      }
+      return;
+    }
+
+    // VND bank transfer flow (existing QR)
     try {
       const order = await createOrder(telegramId, slug, username);
       if (order.error) throw new Error(order.error);
 
-      const caption =
-        `💳 <b>Thanh toán gói ${label}</b>\n\n` +
-        `🏦 Ngân hàng: <b>${order.bank.name}</b>\n` +
-        `💳 Số tài khoản: <code>${order.bank.account}</code>\n` +
-        `👤 Chủ TK: <b>${order.bank.holder}</b>\n` +
-        `💰 Số tiền: <b>${order.amountFormatted}</b>\n` +
-        `📝 Nội dung CK: <code>${order.orderCode}</code>\n\n` +
-        `⚠️ <b>Nhập đúng nội dung chuyển khoản — hệ thống tự giao key sau khi nhận tiền!</b>\n\n` +
-        `⏰ Đơn hàng hết hạn sau 30 phút.`;
+      const caption = l(lang, "paymentBankCaption", {
+        label,
+        bankName: order.bank.name,
+        bankAccount: order.bank.account,
+        bankHolder: order.bank.holder,
+        amount: order.amountFormatted,
+        orderCode: order.orderCode,
+      });
 
       const sent = await ctx.replyWithPhoto(order.qrUrl, { caption, parse_mode: "HTML" });
-      // Save message_id so webhook can delete QR after payment
-      if (sent?.message_id) {
-        await saveOrderQrMessageId(order.orderId, sent.message_id);
-      }
+      if (sent?.message_id) await saveOrderQrMessageId(order.orderId, sent.message_id);
     } catch {
-      // Bank not configured → fallback manual
-      const p = await getPrices();
-      if (!p.bank?.account) {
-        await ctx.replyWithHTML(
-          `💳 <b>Mua gói ${label}</b>\n\n` +
-          "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
-          "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
-          "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
-        );
-      } else {
-        await ctx.replyWithHTML(
-          `💳 <b>Mua gói ${label}</b>\n\n` +
-          `🏦 Ngân hàng: <b>${p.bank.name}</b>\n` +
-          `💳 Số tài khoản: <code>${p.bank.account}</code>\n` +
-          `👤 Chủ TK: <b>${p.bank.holder}</b>\n` +
-          `💰 Số tiền: <b>${priceStr}</b>\n\n` +
-          "Chuyển khoản và liên hệ admin để nhận key.\n\n" +
-          "Sau khi nhận key:\n<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
-        );
-      }
+      await ctx.replyWithHTML(l(lang, "paymentNoConfig", { label }));
     }
   };
 
@@ -944,105 +987,64 @@ export function createBot(token: string): Telegraf {
   });
 
   // ── Reply-keyboard button handlers ─────────────────────────────────────────
-  // BTN.TRY — shown in Phase 1 (new users with trial remaining)
-  bot.hears(BTN.TRY, async (ctx) => {
+  // ── Reply-keyboard button handlers (bilingual) ────────────────────────────────
+  function getLang(uid: number): Lang { return getSession(uid).lang ?? "vi"; }
+
+  bot.hears([BTN_VI.TRY, BTN_EN.TRY], async (ctx) => {
     if (!await guardRate(ctx)) return;
     const uid = ctx.from.id;
-    const telegramId = String(uid);
-    const trial = await checkTrial(telegramId);
-    await ctx.replyWithHTML(
-      `🔍 <b>Cách dùng thử miễn phí:</b>\n\n` +
-      `Dán thẳng tài khoản vào chat (không cần lệnh):\n` +
-      `<code>email|password</code>\n` +
-      `<code>email|password|TOTP_SECRET</code>\n\n` +
-      `🎁 Bạn còn <b>${trial.remaining}/${TRIAL_LIMIT}</b> lượt thử miễn phí.`
-    );
+    const lang = getLang(uid);
+    const trial = await checkTrial(String(uid));
+    await ctx.replyWithHTML(l(lang, "tryInstructions", { remaining: String(trial.remaining), limit: String(TRIAL_LIMIT) }));
   });
 
-  bot.hears(BTN.CHECK, async (ctx) => {
+  bot.hears([BTN_VI.CHECK, BTN_EN.CHECK], async (ctx) => {
     if (!await guardRate(ctx)) return;
-    await ctx.replyWithHTML(
-      "🔍 <b>Cách check tài khoản:</b>\n\n" +
-      "Dán thẳng vào chat (không cần lệnh):\n" +
-      "<code>email|password</code>\n" +
-      "<code>email|password|TOTP_SECRET</code>\n\n" +
-      "Nhiều tài khoản: mỗi dòng 1 tài khoản.\n\n" +
-      "Hoặc dùng /bulk để upload file .txt check hàng loạt."
-    );
+    await ctx.replyWithHTML(l(getLang(ctx.from.id), "checkInstructions"));
   });
 
-  bot.hears(BTN.STATUS, async (ctx) => {
+  bot.hears([BTN_VI.STATUS, BTN_EN.STATUS], async (ctx) => {
     if (!await guardRate(ctx)) return;
     await handleStatusDisplay(ctx);
   });
 
-  bot.hears(BTN.ACTIVATE, async (ctx) => {
-    await ctx.replyWithHTML(
-      "🔑 <b>Cách kích hoạt key:</b>\n\n" +
-      "Dán thẳng key vào chat (không cần lệnh):\n" +
-      "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
-      "Hoặc dùng lệnh: <code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
-    );
+  bot.hears([BTN_VI.ACTIVATE, BTN_EN.ACTIVATE], async (ctx) => {
+    await ctx.replyWithHTML(l(getLang(ctx.from.id), "activateInstructions"));
   });
 
-  bot.hears(BTN.BUY, async (ctx) => {
+  bot.hears([BTN_VI.BUY, BTN_EN.BUY], async (ctx) => {
+    const lang = getLang(ctx.from.id);
     const plans = await getPlans();
     const enabled = plans.filter(p => p.enabled);
     if (enabled.length === 0) {
-      await ctx.replyWithHTML("⚠️ Hiện tại chưa có gói nào đang mở bán. Vui lòng liên hệ admin.");
-      return;
+      await ctx.replyWithHTML(l(lang, "buyNoPlan")); return;
     }
     await ctx.replyWithHTML(
-      "🛒 <b>Chọn gói phù hợp với bạn:</b>",
-      Markup.inlineKeyboard(
-        enabled.map(p => [Markup.button.callback(
-          `${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`,
-          `plan_${p.slug}`
-        )])
-      )
+      l(lang, "buyHeader"),
+      Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
     );
   });
 
-  bot.hears(BTN.BULK, async (ctx) => {
+  bot.hears([BTN_VI.BULK, BTN_EN.BULK], async (ctx) => {
     if (!await guardRate(ctx)) return;
     const uid = ctx.from.id;
-    const telegramId = String(uid);
+    const lang = getLang(uid);
     const session = getSession(uid);
     if (!session.activeKey) {
       await ctx.replyWithHTML(
-        "⛔ <b>Tính năng check hàng loạt yêu cầu key.</b>\n\n" +
-        "Lần dùng thử chỉ cho phép check <b>1 tài khoản</b> mỗi lần.\n\n" +
-        "Dán key vào chat hoặc dùng /activate để kích hoạt.",
-        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
-      );
-      return;
+        l(lang, "bulkRequiresKey"),
+        Markup.inlineKeyboard([[Markup.button.callback(l(lang, "buyBtn"), "buy_key")]])
+      ); return;
     }
     setSession(uid, { waitingBulk: true });
-    await ctx.replyWithHTML(
-      "📤 <b>Gửi file .txt chứa danh sách tài khoản.</b>\n\n" +
-      "Mỗi dòng 1 tài khoản, định dạng:\n" +
-      "<code>email|password</code>\n" +
-      "<code>email|password|TOTP_SECRET</code>\n\n" +
-      `<i>Telegram ID: <code>${telegramId}</code></i>`
-    );
+    await ctx.replyWithHTML(l(lang, "bulkUploadPrompt") + `\n\n<i>Telegram ID: <code>${uid}</code></i>`);
   });
 
-  bot.hears(BTN.HELP, async (ctx) => {
+  bot.hears([BTN_VI.HELP, BTN_EN.HELP], async (ctx) => {
+    const lang = getLang(ctx.from.id);
     await ctx.replyWithHTML(
-      "<b>📖 Hướng dẫn sử dụng</b>\n\n" +
-      "<b>✨ Dán thẳng vào chat — không cần gõ lệnh:</b>\n\n" +
-      "🔑 <b>Kích hoạt key:</b>\n" +
-      "<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n" +
-      "🔍 <b>Check tài khoản:</b>\n" +
-      "<code>email|password</code>\n" +
-      "<code>email|password|TOTP_SECRET</code>\n" +
-      "Nhiều tài khoản: mỗi dòng 1 tài khoản\n\n" +
-      "<b>📋 Lệnh nhanh:</b>\n" +
-      "/check — Check ngay tại chat\n" +
-      "/bulk — Upload file .txt check hàng loạt\n" +
-      "/activate — Kích hoạt key\n" +
-      "/status — Xem lượt dùng & hết hạn\n\n" +
-      "<i>💡 Mỗi người mới được dùng thử miễn phí 3 lần.</i>"
+      l(lang, "helpText", { limit: String(TRIAL_LIMIT) }),
+      Markup.inlineKeyboard([[Markup.button.callback(l(lang, "langBtn"), "show_lang_selector")]])
     );
   });
 

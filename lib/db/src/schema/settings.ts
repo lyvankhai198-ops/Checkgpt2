@@ -23,6 +23,9 @@ export const settingsTable = pgTable("settings", {
   bankHolder: text("bank_holder"),
   paymentEnabled: integer("payment_enabled").default(0), // 0=off, 1=on (bool as int)
   sepayApiKey: text("sepay_api_key"),                   // stored masked, like bot token
+  // USDT payment (manual)
+  usdtWallet: text("usdt_wallet"),                      // TRC20 wallet address
+  usdtRateVnd: integer("usdt_rate_vnd").default(25000), // VND per 1 USDT
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

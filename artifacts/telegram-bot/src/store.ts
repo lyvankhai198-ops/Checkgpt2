@@ -12,6 +12,8 @@ export interface UserSession {
   activeKeyDisplay?: string;
   /** true = already checked DB for currentKeyId this process lifetime, skip re-check */
   dbSessionChecked?: boolean;
+  /** User's language preference */
+  lang?: "vi" | "en";
   /** Whether user is waiting to send a .txt file for bulk check */
   waitingBulk?: boolean;
   /** Concurrency slots currently occupied */

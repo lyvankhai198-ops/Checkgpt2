@@ -23,13 +23,16 @@ const settingsSchema = z.object({
   defaultMaxConcurrent: z.coerce.number().min(1).default(1),
   notifyExpiryDays: z.coerce.number().min(0).default(3),
   welcomeMessage: z.string().optional(),
-  // Payment
+  // Payment — bank
   paymentEnabled: z.boolean().default(false),
   bankName: z.string().optional(),
   bankBin: z.string().optional(),
   bankAccount: z.string().optional(),
   bankHolder: z.string().optional(),
   sepayApiKey: z.string().optional(),
+  // Payment — USDT
+  usdtWallet: z.string().optional(),
+  usdtRateVnd: z.coerce.number().min(1000).default(25000),
 });
 
 export default function Settings() {
@@ -77,6 +80,8 @@ export default function Settings() {
         bankAccount: data.settings.bankAccount ?? "",
         bankHolder: data.settings.bankHolder ?? "",
         sepayApiKey: data.settings.sepayApiKey ? "" : "", // always blank — masked server-side
+        usdtWallet: (data.settings as any).usdtWallet ?? "",
+        usdtRateVnd: (data.settings as any).usdtRateVnd ?? 25000,
       });
     }
   }, [data, form]);
@@ -298,6 +303,35 @@ export default function Settings() {
                   {window.location.origin.replace(/\/admin-dashboard.*/, "")}/api/payment/webhook
                 </code>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>💎 Thanh toán USDT (thủ công)</CardTitle>
+              <CardDescription>Dành cho khách dùng ngôn ngữ Tiếng Anh — hiển thị địa chỉ ví thay vì QR bank. Admin giao key thủ công sau khi nhận USDT.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <FormField control={form.control} name="usdtWallet" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Địa chỉ ví USDT (TRC20)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="TRC20 wallet address..." className="bg-background font-mono text-sm" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">Để trống = tắt thanh toán USDT, hiện liên hệ admin.</p>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="usdtRateVnd" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tỷ giá: 1 USDT = ? VND</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="25000" className="bg-background" {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">Ví dụ: 25000 = 1 USDT ≈ 25.000đ. Bot dùng tỷ giá này để tính số USDT cần chuyển.</p>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </CardContent>
           </Card>
 

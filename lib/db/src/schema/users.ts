@@ -10,6 +10,7 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  language: text("language"),  // "vi" | "en" | null (null = not yet selected → show selector)
 });
 
 export type User = typeof usersTable.$inferSelect;

@@ -192,6 +192,26 @@ router.post("/keys/trial/check", keyLimiter, async (req, res): Promise<void> => 
   });
 });
 
+// ─── User language preference ─────────────────────────────────────────────────
+
+router.post("/users/language", keyLimiter, async (req, res): Promise<void> => {
+  const { telegramId, language } = req.body ?? {};
+  if (!telegramId || !["vi", "en"].includes(language)) {
+    res.status(400).json({ error: "telegramId and language (vi|en) required" }); return;
+  }
+  await getOrCreateUser(String(telegramId));
+  await db.update(usersTable).set({ language }).where(eq(usersTable.telegramId, String(telegramId)));
+  res.json({ ok: true });
+});
+
+router.get("/users/language", keyLimiter, async (req, res): Promise<void> => {
+  const telegramId = req.query.telegramId as string;
+  if (!telegramId) { res.status(400).json({ error: "telegramId required" }); return; }
+  const [user] = await db.select({ language: usersTable.language })
+    .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+  res.json({ language: user?.language ?? null });
+});
+
 router.post("/keys/trial/use", keyLimiter, async (req, res): Promise<void> => {
   const { telegramId } = req.body ?? {};
   if (!telegramId) { res.status(400).json({ error: "telegramId required" }); return; }
