@@ -124,9 +124,20 @@ async function resolveAccess(ctx: Context): Promise<
     if (use.allowed) {
       const remaining = use.remaining;
       if (remaining === 0) {
-        await ctx.reply(
-          `✅ Đây là lần dùng thử cuối cùng (${TRIAL_LIMIT}/${TRIAL_LIMIT}).\n` +
-          "Sau lần này bạn cần nhập key để tiếp tục sử dụng."
+        // Last trial use — proactively show buy options
+        const plans = await getPlans();
+        const enabled = plans.filter(p => p.enabled);
+        await ctx.replyWithHTML(
+          `✅ <b>Đây là lần dùng thử cuối (${TRIAL_LIMIT}/${TRIAL_LIMIT}).</b>\n\n` +
+          `Mua gói để tiếp tục check không giới hạn sau lần này 👇`,
+          enabled.length > 0
+            ? Markup.inlineKeyboard(
+                enabled.map(p => [Markup.button.callback(
+                  `${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`,
+                  `plan_${p.slug}`
+                )])
+              )
+            : undefined
         );
       }
       return { allowed: true, mode: "trial" };
@@ -342,15 +353,22 @@ const BTN = {
   BUY:      "🛒 Mua Key",
   BULK:     "📦 Bulk Check",
   HELP:     "📖 Hướng dẫn",
+  TRY:      "🎁 Dùng thử miễn phí",
 } as const;
 
 /** Texts that belong to the reply keyboard — skip credential parsing */
 const KEYBOARD_TEXTS = new Set(Object.values(BTN));
 
+/** Full menu — for users with an active key or returning customers */
 const MAIN_KEYBOARD = Markup.keyboard([
   [BTN.CHECK,    BTN.STATUS],
   [BTN.ACTIVATE, BTN.BUY],
   [BTN.BULK,     BTN.HELP],
+]).resize();
+
+/** Trial menu — only shown to new users who still have trial uses */
+const TRIAL_KEYBOARD = Markup.keyboard([
+  [BTN.TRY],
 ]).resize();
 
 // ─── Bot setup ────────────────────────────────────────────────────────────────
@@ -362,17 +380,64 @@ export function createBot(token: string): Telegraf {
   bot.start(async (ctx) => {
     if (!await guardRate(ctx)) return;
     const name = ctx.from.first_name ?? "bạn";
-    const telegramId = String(ctx.from.id);
+    const uid  = ctx.from.id;
+    const telegramId = String(uid);
+    const session = getSession(uid);
+
+    // Phase 3A: Has active key in session → full menu
+    if (session.activeKey || session.activeKeyId) {
+      await ctx.replyWithHTML(
+        `👋 Chào lại <b>${escHtml(name)}</b>!\n\n` +
+        `Key của bạn đang hoạt động. Dùng menu bên dưới để check tài khoản.`,
+        MAIN_KEYBOARD
+      );
+      return;
+    }
+
     const trial = await checkTrial(telegramId);
 
+    // Phase 1: Still has trial → trial keyboard only
+    if (trial.hasTrialLeft) {
+      await ctx.replyWithHTML(
+        `👋 Chào <b>${escHtml(name)}</b>! Tôi là <b>GPT Checker Bot</b> 🤖\n\n` +
+        `Tool kiểm tra tài khoản ChatGPT nhanh nhất Việt Nam.\n\n` +
+        `🎁 Bạn có <b>${trial.remaining}/${TRIAL_LIMIT}</b> lần dùng thử miễn phí.\n\n` +
+        `Nhấn nút bên dưới hoặc dán thẳng <code>email|password</code> vào chat để check ngay!`,
+        TRIAL_KEYBOARD
+      );
+      return;
+    }
+
+    // Phase 3B: Trial exhausted — check DB for returning customer
+    const current = await getCurrentUserKey(telegramId).catch(() => null);
+    const isReturning = current?.keyId != null;
+
+    if (isReturning) {
+      // Restore session pointer so they can use existing key
+      setSession(uid, { activeKeyId: current!.keyId, activeKeyDisplay: current!.keyDisplay });
+      await ctx.replyWithHTML(
+        `👋 Chào lại <b>${escHtml(name)}</b>!\n\n` +
+        `Key của bạn đã hết hạn hoặc cần kích hoạt lại.\n` +
+        `Mua gói mới hoặc nhập key để tiếp tục.`,
+        MAIN_KEYBOARD
+      );
+      return;
+    }
+
+    // Phase 2: Trial exhausted, never bought → show buy inline (no reply keyboard)
+    const plans = await getPlans();
+    const enabled = plans.filter(p => p.enabled);
     await ctx.replyWithHTML(
-      `👋 Chào <b>${escHtml(name)}</b>! Tôi là <b>GPT Checker Bot</b>.\n\n` +
-      `Tôi giúp bạn kiểm tra tài khoản ChatGPT nhanh chóng.\n\n` +
-      (trial.hasTrialLeft
-        ? `🎁 Bạn còn <b>${trial.remaining}/${TRIAL_LIMIT}</b> lần dùng thử miễn phí.`
-        : `⚠️ Bạn đã hết lần dùng thử. Mua key để tiếp tục.`
-      ),
-      MAIN_KEYBOARD
+      `⚡ <b>Bạn đã dùng hết ${TRIAL_LIMIT} lần thử miễn phí!</b>\n\n` +
+      `Mua gói để tiếp tục kiểm tra không giới hạn 👇`,
+      enabled.length > 0
+        ? Markup.inlineKeyboard(
+            enabled.map(p => [Markup.button.callback(
+              `${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`,
+              `plan_${p.slug}`
+            )])
+          )
+        : Markup.inlineKeyboard([[Markup.button.callback("📞 Liên hệ admin", "contact_admin")]])
     );
   });
 
@@ -559,9 +624,10 @@ export function createBot(token: string): Telegraf {
           ? `🔢 Tổng lượt: <b>${result.maxTotalUses}</b>`
           : "🔢 Tổng lượt: Không giới hạn",
         "",
-        "Dùng /check để bắt đầu kiểm tra tài khoản.",
+        "Dán <code>email|password</code> vào chat để bắt đầu check ngay!",
       ];
-      await ctx.replyWithHTML(lines.join("\n"));
+      // Switch to full menu after successful activation
+      await ctx.replyWithHTML(lines.join("\n"), MAIN_KEYBOARD);
     } else {
       const reasons: Record<string, string> = {
         not_found: "❌ Key không tồn tại hoặc đã nhập sai.",
@@ -764,8 +830,8 @@ export function createBot(token: string): Telegraf {
     );
   }
 
-  bot.action("plan_basic", (ctx) => showPlanDetail(ctx, "basic"));
-  bot.action("plan_pro",   (ctx) => showPlanDetail(ctx, "pro"));
+  // Dynamic plan detail handler — supports any slug (basic, pro, vip, etc.)
+  bot.action(/^plan_(.+)$/, (ctx) => showPlanDetail(ctx, (ctx as any).match[1]));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const showPaymentInfo = async (ctx: any, slug: string) => {
@@ -878,6 +944,21 @@ export function createBot(token: string): Telegraf {
   });
 
   // ── Reply-keyboard button handlers ─────────────────────────────────────────
+  // BTN.TRY — shown in Phase 1 (new users with trial remaining)
+  bot.hears(BTN.TRY, async (ctx) => {
+    if (!await guardRate(ctx)) return;
+    const uid = ctx.from.id;
+    const telegramId = String(uid);
+    const trial = await checkTrial(telegramId);
+    await ctx.replyWithHTML(
+      `🔍 <b>Cách dùng thử miễn phí:</b>\n\n` +
+      `Dán thẳng tài khoản vào chat (không cần lệnh):\n` +
+      `<code>email|password</code>\n` +
+      `<code>email|password|TOTP_SECRET</code>\n\n` +
+      `🎁 Bạn còn <b>${trial.remaining}/${TRIAL_LIMIT}</b> lượt thử miễn phí.`
+    );
+  });
+
   bot.hears(BTN.CHECK, async (ctx) => {
     if (!await guardRate(ctx)) return;
     await ctx.replyWithHTML(
