@@ -123,18 +123,6 @@ async function resolveAccess(ctx: Context): Promise<
   if (trial.hasTrialLeft) {
     const use = await useTrial(telegramId);
     if (use.allowed) {
-      const remaining = use.remaining;
-      if (remaining === 0) {
-        const lang: Lang = getSession(uid).lang ?? "vi";
-        const plans = await getPlans();
-        const enabled = plans.filter(p => p.enabled);
-        await ctx.replyWithHTML(
-          l(lang, "trialLastUse", { limit: String(TRIAL_LIMIT) }),
-          enabled.length > 0
-            ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
-            : undefined
-        );
-      }
       return { allowed: true, mode: "trial" };
     }
   }
