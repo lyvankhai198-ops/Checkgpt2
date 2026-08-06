@@ -27,6 +27,7 @@ await bot.telegram.setMyCommands([
   { command: "bulk",     description: "📦 Check hàng loạt (upload file)" },
   { command: "activate", description: "🔑 Kích hoạt key" },
   { command: "status",   description: "📊 Xem trạng thái & lượt dùng key" },
+  { command: "lang",     description: "🌐 Đổi ngôn ngữ / Change language" },
   { command: "help",     description: "📖 Hướng dẫn sử dụng" },
 ]);
 
