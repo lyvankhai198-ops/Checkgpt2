@@ -53,8 +53,8 @@ const T = {
     en: "✅ <b>This is your last free trial use ({{limit}}/{{limit}}).</b>\n\nBuy a plan to keep checking without limits 👇",
   },
   trialExhausted: {
-    vi: "⛔ Bạn đã dùng hết {{limit}} lần thử miễn phí.\n\nNhập /activate <key> để kích hoạt key.\nHoặc nhấn nút bên dưới để mua key.",
-    en: "⛔ You've used all {{limit}} free trial uses.\n\nEnter /activate <key> to activate a key.\nOr tap below to buy a plan.",
+    vi: "⛔ Bạn đã dùng hết {{limit}} lần thử miễn phí.\n\nNhập <code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code> để kích hoạt key.\nHoặc nhấn nút bên dưới để mua key.",
+    en: "⛔ You've used all {{limit}} free trial uses.\n\nEnter <code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code> to activate a key.\nOr tap below to buy a plan.",
   },
 
   // ── Buy flow ─────────────────────────────────────────────────────────────
