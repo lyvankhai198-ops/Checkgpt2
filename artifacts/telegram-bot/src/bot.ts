@@ -129,15 +129,19 @@ async function resolveAccess(ctx: Context): Promise<
 
   // No trial left, no key → inline buy options + switch keyboard to Activate Key
   const lang2: Lang = getSession(uid).lang ?? "vi";
-  const plans2 = await getPlans().catch(() => [] as PlanConfig[]);
-  const enabled2 = plans2.filter(p => p.enabled);
-  await ctx.replyWithHTML(
-    l(lang2, "trialExhausted", { limit: String(TRIAL_LIMIT) }),
-    enabled2.length > 0
-      ? Markup.inlineKeyboard(enabled2.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
-      : Markup.inlineKeyboard([[Markup.button.callback(l(lang2, "buyBtn"), "buy_key")]])
-  );
-  await ctx.replyWithHTML(l(lang2, "haveKey"), activateKeyboard(lang2));
+  try {
+    const plans2 = await getPlans().catch(() => [] as PlanConfig[]);
+    const enabled2 = plans2.filter(p => p.enabled);
+    await ctx.replyWithHTML(
+      l(lang2, "trialExhausted", { limit: String(TRIAL_LIMIT) }),
+      enabled2.length > 0
+        ? Markup.inlineKeyboard(enabled2.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
+        : Markup.inlineKeyboard([[Markup.button.callback(l(lang2, "buyBtn"), "buy_key")]])
+    );
+    await ctx.replyWithHTML(l(lang2, "haveKey"), activateKeyboard(lang2));
+  } catch {
+    // Telegram API hiccup — silent fallback, don't re-throw
+  }
   return { allowed: false };
 }
 
@@ -267,17 +271,20 @@ async function handleCredentialInput(ctx: Context, raw: string) {
   try {
     access = await resolveAccess(ctx);
   } catch {
-    // API temporarily unavailable — show buy-key fallback instead of crashing
+    // API temporarily unavailable — show buy-key fallback, never re-throw
     const uid = ctx.from!.id;
     const lang: Lang = getSession(uid).lang ?? "vi";
-    const plans = await getPlans().catch(() => [] as PlanConfig[]);
-    const enabled = plans.filter(p => p.enabled);
-    await ctx.replyWithHTML(
-      l(lang, "trialExhausted", { limit: String(TRIAL_LIMIT) }),
-      enabled.length > 0
-        ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
-        : Markup.inlineKeyboard([[Markup.button.callback(l(lang, "buyBtn"), "buy_key")]])
-    );
+    try {
+      const plans = await getPlans().catch(() => [] as PlanConfig[]);
+      const enabled = plans.filter(p => p.enabled);
+      await ctx.replyWithHTML(
+        l(lang, "trialExhausted", { limit: String(TRIAL_LIMIT) }),
+        enabled.length > 0
+          ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
+          : Markup.inlineKeyboard([[Markup.button.callback(l(lang, "buyBtn"), "buy_key")]])
+      );
+      await ctx.replyWithHTML(l(lang, "haveKey"), activateKeyboard(lang));
+    } catch { /* silence — don't let fallback itself crash bot.catch */ }
     return;
   }
   if (!access.allowed) return;
