@@ -30,7 +30,7 @@ async function guardRate(ctx: Context): Promise<boolean> {
 /** Returns { allowed: true } or sends an error and returns { allowed: false }. */
 async function resolveAccess(ctx: Context): Promise<
   | { allowed: false }
-  | { allowed: true; mode: "trial" }
+  | { allowed: true; mode: "trial"; remaining: number }
   | { allowed: true; mode: "key"; key: string; keyId: number; plan: string; maxConcurrent: number }
 > {
   const uid = ctx.from!.id;
@@ -123,7 +123,7 @@ async function resolveAccess(ctx: Context): Promise<
   if (trial.hasTrialLeft) {
     const use = await useTrial(telegramId);
     if (use.allowed) {
-      return { allowed: true, mode: "trial" };
+      return { allowed: true, mode: "trial", remaining: use.remaining };
     }
   }
 
@@ -314,6 +314,19 @@ async function handleCredentialInput(ctx: Context, raw: string) {
       const result = await checkSingle("account", line);
       await ctx.telegram.deleteMessage(ctx.chat!.id, thinkMsg.message_id).catch(() => {});
       await ctx.replyWithHTML(formatResult(result));
+      // If this was the last trial, immediately prompt to buy + switch keyboard
+      if (access.mode === "trial" && access.remaining === 0) {
+        const _lang = getSession(uid).lang ?? "vi";
+        const _plans = await getPlans().catch(() => [] as PlanConfig[]);
+        const _enabled = _plans.filter(p => p.enabled);
+        await ctx.replyWithHTML(
+          l(_lang, "trialExhausted", { limit: String(TRIAL_LIMIT) }),
+          _enabled.length > 0
+            ? Markup.inlineKeyboard(_enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
+            : Markup.inlineKeyboard([[Markup.button.callback(l(_lang, "buyBtn"), "buy_key")]])
+        );
+        await ctx.replyWithHTML(l(_lang, "haveKey"), activateKeyboard(_lang));
+      }
     } else if (access.mode === "trial") {
       // Trial cannot use bulk at all
       await ctx.replyWithHTML(
