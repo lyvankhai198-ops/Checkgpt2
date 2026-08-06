@@ -1,9 +1,9 @@
 import { Telegraf, Markup, type Context } from "telegraf";
 import {
   checkTrial, useTrial, validateKey, activateKey,
-  useKey, releaseKey, checkSingle, checkBulk, getPrices, createOrder,
-  getPlans, fmtPlanPrice,
-  type CheckResult, type ValidateResponse, type PlanConfig,
+  useKey, useKeyById, releaseKey, checkSingle, checkBulk, getPrices, createOrder,
+  getPlans, fmtPlanPrice, getCurrentUserKey,
+  type CheckResult, type ValidateResponse, type PlanConfig, type UserCurrentKeyResponse,
 } from "./api.js";
 import {
   RateLimiter, formatResult, formatExpiry, escHtml, parseKey,
@@ -36,7 +36,7 @@ async function resolveAccess(ctx: Context): Promise<
   const telegramId = String(uid);
   const session = getSession(uid);
 
-  // User has an active key in this session
+  // ── Path A: raw key in memory (user typed it this session) ───────────────────
   if (session.activeKey) {
     const v = await validateKey(session.activeKey, telegramId);
     if (v.valid) {
@@ -56,10 +56,8 @@ async function resolveAccess(ctx: Context): Promise<
         await ctx.reply("🚫 Key đã dùng hết tổng lượt sử dụng.");
         return { allowed: false };
       }
-      // Key may have expired since validation
       setSession(uid, { activeKey: undefined, activeKeyId: undefined });
     } else {
-      // Key expired or locked
       setSession(uid, { activeKey: undefined, activeKeyId: undefined });
       const reasons: Record<string, string> = {
         expired: "⌛ Key của bạn đã hết hạn.",
@@ -72,7 +70,54 @@ async function resolveAccess(ctx: Context): Promise<
     }
   }
 
-  // No key — try trial
+  // ── Path B: restore session from DB (after bot restart) ──────────────────────
+  // Only run once per user per process lifetime to avoid repeated DB calls.
+  if (!session.activeKeyId && !session.dbSessionChecked) {
+    setSession(uid, { dbSessionChecked: true }); // mark immediately to avoid double-call
+    const current = await getCurrentUserKey(telegramId);
+    if (current.hasKey && current.keyId) {
+      setSession(uid, { activeKeyId: current.keyId, activeKeyDisplay: current.keyDisplay });
+    }
+  }
+
+  // ── Path C: key ID in memory (raw activate OR restored from DB) ───────────────
+  if (!session.activeKey && session.activeKeyId) {
+    const u = await useKeyById(session.activeKeyId, telegramId);
+    if (u.allowed && u.keyId) {
+      // Get plan/maxConcurrent from DB (one cheap read)
+      const cur = await getCurrentUserKey(telegramId);
+      return {
+        allowed: true, mode: "key",
+        key: session.activeKeyDisplay ?? session.activeKey ?? "***",
+        keyId: u.keyId,
+        plan: cur.plan ?? "basic",
+        maxConcurrent: cur.maxConcurrent ?? 1,
+      };
+    }
+    if (u.reason === "concurrency_limit") {
+      await ctx.reply("⏳ Bạn đang chạy quá số tác vụ đồng thời. Đợi lệnh hiện tại xong rồi thử lại.");
+      return { allowed: false };
+    }
+    if (u.reason === "daily_limit_reached") {
+      await ctx.reply("📊 Đã đạt giới hạn lượt sử dụng hôm nay. Thử lại vào ngày mai.");
+      return { allowed: false };
+    }
+    if (u.reason === "max_uses_reached") {
+      await ctx.reply("🚫 Key đã dùng hết tổng lượt sử dụng.");
+      return { allowed: false };
+    }
+    // Key became invalid (expired, revoked, locked)
+    setSession(uid, { activeKeyId: undefined, activeKeyDisplay: undefined });
+    const reasons: Record<string, string> = {
+      expired: "⌛ Key của bạn đã hết hạn.",
+      locked: "🔒 Key của bạn đang bị khóa. Liên hệ admin.",
+      revoked: "❌ Key đã bị thu hồi.",
+    };
+    await ctx.reply((reasons[u.reason ?? ""] ?? "❌ Key không còn hợp lệ.") + "\n\nNhập /activate <key> để kích hoạt key mới.");
+    return { allowed: false };
+  }
+
+  // ── Path D: no key at all — try trial ─────────────────────────────────────────
   const trial = await checkTrial(telegramId);
   if (trial.hasTrialLeft) {
     const use = await useTrial(telegramId);
@@ -607,37 +652,74 @@ export function createBot(token: string): Telegraf {
     return lines;
   }
 
-  // ── /status ─────────────────────────────────────────────────────────────────
-  bot.command("status", async (ctx) => {
-    if (!await guardRate(ctx)) return;
-
-    const uid = ctx.from.id;
+  // ── Shared status display helper ─────────────────────────────────────────────
+  async function handleStatusDisplay(ctx: Context) {
+    const uid = ctx.from!.id;
     const telegramId = String(uid);
     const session = getSession(uid);
 
-    if (!session.activeKey) {
-      const trial = await checkTrial(telegramId);
-      await ctx.replyWithHTML(
-        buildStatusLines("", { valid: false }, { remaining: trial.remaining }).join("\n"),
-        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
-      );
+    // Path A: raw key in memory
+    if (session.activeKey) {
+      const v = await validateKey(session.activeKey, telegramId);
+      const lines = buildStatusLines(session.activeKey, v);
+      const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
+      if (!v.valid) setSession(uid, { activeKey: undefined, activeKeyId: undefined });
+      await ctx.replyWithHTML(lines.join("\n"),
+        exhausted ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined);
       return;
     }
 
-    const v = await validateKey(session.activeKey, telegramId);
-    const lines = buildStatusLines(session.activeKey, v);
-    const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
+    // Path B: check DB restore if needed
+    if (!session.activeKeyId && !session.dbSessionChecked) {
+      setSession(uid, { dbSessionChecked: true });
+      const current = await getCurrentUserKey(telegramId);
+      if (current.hasKey && current.keyId) {
+        setSession(uid, { activeKeyId: current.keyId, activeKeyDisplay: current.keyDisplay });
+      }
+    }
 
-    if (!v.valid) setSession(uid, { activeKey: undefined });
+    // Path C: key ID restored from DB
+    if (session.activeKeyId) {
+      const current = await getCurrentUserKey(telegramId);
+      if (current.hasKey) {
+        // Build ValidateResponse-compatible object from current
+        const v: ValidateResponse = {
+          valid: current.valid ?? true,
+          reason: current.reason,
+          plan: current.plan,
+          expiresAt: current.expiresAt,
+          maxConcurrent: current.maxConcurrent,
+          totalUses: current.totalUses,
+          maxTotalUses: current.maxTotalUses,
+          dailyUses: current.dailyUses,
+          dailyLimit: current.dailyLimit,
+          dailyUsesLeft: current.dailyUsesLeft,
+          totalUsesLeft: current.totalUsesLeft,
+        };
+        const displayKey = session.activeKeyDisplay ?? current.keyDisplay ?? "***";
+        const lines = buildStatusLines(displayKey, v);
+        const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
+        if (!v.valid) setSession(uid, { activeKeyId: undefined, activeKeyDisplay: undefined });
+        await ctx.replyWithHTML(lines.join("\n"),
+          exhausted ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined);
+        return;
+      }
+      // Key in DB is no longer valid — clear and fall through
+      setSession(uid, { activeKeyId: undefined, activeKeyDisplay: undefined });
+    }
 
+    // No key — show trial status
+    const trial = await checkTrial(telegramId);
     await ctx.replyWithHTML(
-      lines.join("\n"),
-      exhausted
-        ? Markup.inlineKeyboard([
-            [Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")],
-          ])
-        : undefined
+      buildStatusLines("", { valid: false } as ValidateResponse, { remaining: trial.remaining }).join("\n"),
+      Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
     );
+  }
+
+  // ── /status ─────────────────────────────────────────────────────────────────
+  bot.command("status", async (ctx) => {
+    if (!await guardRate(ctx)) return;
+    await handleStatusDisplay(ctx);
   });
 
   // ── Inline button callbacks ──────────────────────────────────────────────────
@@ -786,31 +868,7 @@ export function createBot(token: string): Telegraf {
 
   bot.action("cmd_status", async (ctx) => {
     await ctx.answerCbQuery();
-    const uid = ctx.from!.id;
-    const telegramId = String(uid);
-    const session = getSession(uid);
-
-    if (!session.activeKey) {
-      const trial = await checkTrial(telegramId);
-      await ctx.replyWithHTML(
-        buildStatusLines("", { valid: false } as ValidateResponse, { remaining: trial.remaining }).join("\n"),
-        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
-      );
-      return;
-    }
-
-    const v = await validateKey(session.activeKey, telegramId);
-    const lines = buildStatusLines(session.activeKey, v);
-    const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
-
-    if (!v.valid) setSession(uid, { activeKey: undefined });
-
-    await ctx.replyWithHTML(
-      lines.join("\n"),
-      exhausted
-        ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]])
-        : undefined
-    );
+    await handleStatusDisplay(ctx);
   });
 
   // ── Reply-keyboard button handlers ─────────────────────────────────────────
@@ -828,25 +886,7 @@ export function createBot(token: string): Telegraf {
 
   bot.hears(BTN.STATUS, async (ctx) => {
     if (!await guardRate(ctx)) return;
-    const uid = ctx.from.id;
-    const telegramId = String(uid);
-    const session = getSession(uid);
-    if (!session.activeKey) {
-      const trial = await checkTrial(telegramId);
-      await ctx.replyWithHTML(
-        buildStatusLines("", { valid: false } as ValidateResponse, { remaining: trial.remaining }).join("\n"),
-        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
-      );
-      return;
-    }
-    const v = await validateKey(session.activeKey, telegramId);
-    const lines = buildStatusLines(session.activeKey, v);
-    const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
-    if (!v.valid) setSession(uid, { activeKey: undefined });
-    await ctx.replyWithHTML(
-      lines.join("\n"),
-      exhausted ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined
-    );
+    await handleStatusDisplay(ctx);
   });
 
   bot.hears(BTN.ACTIVATE, async (ctx) => {

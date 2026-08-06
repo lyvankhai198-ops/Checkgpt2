@@ -5,10 +5,12 @@
 import { Router, type IRouter } from "express";
 import { rateLimit } from "express-rate-limit";
 import {
-  validateKey, activateKey, recordUse, releaseUse,
+  validateKey, validateKeyById, activateKey, recordUse, releaseUse,
   getOrCreateUser, hasTrialLeft, incrementTrial, FREE_TRIAL_LIMIT,
   logUsage,
 } from "../lib/keyService.js";
+import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -118,6 +120,61 @@ router.post("/keys/release", async (req, res): Promise<void> => {
   if (!keyId) { res.status(400).json({ error: "keyId required" }); return; }
   await releaseUse(Number(keyId));
   res.json({ ok: true });
+});
+
+// ─── Session restore: get user's current key by telegramId ────────────────────
+// Used by bot after restart to recover in-memory session from DB
+
+router.get("/keys/user-current", keyLimiter, async (req, res): Promise<void> => {
+  const telegramId = req.query.telegramId as string;
+  if (!telegramId) { res.status(400).json({ error: "telegramId required" }); return; }
+
+  const [user] = await db.select({ currentKeyId: usersTable.currentKeyId })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+
+  if (!user?.currentKeyId) { res.json({ hasKey: false }); return; }
+
+  const result = await validateKeyById(user.currentKeyId, { telegramId });
+  const k = result.key;
+
+  res.json({
+    hasKey: result.valid,
+    keyId: k?.id,
+    keyDisplay: k?.keyDisplay,
+    plan: k?.plan ?? "basic",
+    valid: result.valid,
+    reason: result.reason,
+    expiresAt: k?.expiresAt,
+    maxConcurrent: k?.maxConcurrent ?? 1,
+    totalUses: k?.totalUses ?? 0,
+    maxTotalUses: k?.maxTotalUses ?? null,
+    dailyUses: k?.dailyUses ?? 0,
+    dailyLimit: k?.dailyLimit ?? null,
+    dailyUsesLeft: k?.dailyLimit != null ? Math.max(0, k.dailyLimit - k.dailyUses) : null,
+    totalUsesLeft: k?.maxTotalUses != null ? Math.max(0, k.maxTotalUses - k.totalUses) : null,
+  });
+});
+
+// ─── Use key by ID (for bot session-restore path, no raw key needed) ──────────
+
+router.post("/keys/use-by-keyid", keyLimiter, async (req, res): Promise<void> => {
+  const { keyId, telegramId } = req.body ?? {};
+  if (!keyId) { res.status(400).json({ error: "keyId required" }); return; }
+
+  const validateResult = await validateKeyById(Number(keyId), {
+    telegramId: telegramId ? String(telegramId) : undefined,
+    checkConcurrency: true,
+  });
+
+  if (!validateResult.valid || !validateResult.key) {
+    res.status(403).json({ allowed: false, reason: validateResult.reason, retryAfter: validateResult.retryAfter });
+    return;
+  }
+
+  await recordUse(validateResult.key.id, telegramId ? String(telegramId) : undefined, req.ip);
+  res.json({ allowed: true, keyId: validateResult.key.id });
 });
 
 // ─── Trial ────────────────────────────────────────────────────────────────────

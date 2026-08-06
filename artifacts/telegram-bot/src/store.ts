@@ -4,10 +4,14 @@
  */
 
 export interface UserSession {
-  /** Raw key string (not hashed) — stored only in memory for this session */
+  /** Raw key string (not hashed) — set when user types the key */
   activeKey?: string;
-  /** keyId for releasing concurrency slots */
+  /** keyId for releasing concurrency slots and DB-restored sessions */
   activeKeyId?: number;
+  /** Masked key display (e.g. "KGPT-8CB5F2-DE...") — set when restored from DB */
+  activeKeyDisplay?: string;
+  /** true = already checked DB for currentKeyId this process lifetime, skip re-check */
+  dbSessionChecked?: boolean;
   /** Whether user is waiting to send a .txt file for bulk check */
   waitingBulk?: boolean;
   /** Concurrency slots currently occupied */

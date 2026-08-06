@@ -230,6 +230,50 @@ export async function validateKey(
   return { valid: true, reason: "valid", key };
 }
 
+// ─── Validate by key ID (no raw key needed — for session restore) ─────────────
+
+export async function validateKeyById(
+  keyId: number,
+  opts: { telegramId?: string; checkConcurrency?: boolean } = {},
+): Promise<ValidateResult> {
+  let key = await db.select().from(licenseKeysTable).where(eq(licenseKeysTable.id, keyId)).limit(1).then(r => r[0] ?? null);
+  if (!key) return { valid: false, reason: "not_found" };
+
+  key = await maybeResetDaily(key);
+
+  if (key.status === "revoked") return { valid: false, reason: "revoked", key };
+  if (key.status === "locked")  return { valid: false, reason: "locked",  key };
+
+  if (key.expiresAt && key.expiresAt < new Date()) {
+    if (key.status !== "expired") {
+      await db.update(licenseKeysTable)
+        .set({ status: "expired", updatedAt: new Date() })
+        .where(eq(licenseKeysTable.id, key.id));
+      key = { ...key, status: "expired" };
+    }
+    return { valid: false, reason: "expired", key };
+  }
+
+  if (key.maxTotalUses !== null && key.totalUses >= key.maxTotalUses)
+    return { valid: false, reason: "max_uses_reached", key };
+
+  if (key.dailyLimit !== null && key.dailyUses >= key.dailyLimit)
+    return { valid: false, reason: "daily_limit_reached", key };
+
+  if (opts.checkConcurrency && key.currentConcurrent >= key.maxConcurrent)
+    return { valid: false, reason: "concurrency_limit", key };
+
+  if (opts.telegramId && key.lockToTelegram && key.activatedTelegramId
+      && key.activatedTelegramId !== opts.telegramId)
+    return { valid: false, reason: "telegram_mismatch", key };
+
+  if (opts.telegramId && key.allowedTelegramId
+      && key.allowedTelegramId !== opts.telegramId)
+    return { valid: false, reason: "telegram_mismatch", key };
+
+  return { valid: true, reason: "valid", key };
+}
+
 // ─── Activation ──────────────────────────────────────────────────────────────
 
 export interface ActivateResult {

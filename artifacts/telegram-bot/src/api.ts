@@ -201,6 +201,37 @@ export async function releaseKey(keyId: number): Promise<void> {
   await post("/api/keys/release", { keyId });
 }
 
+// ─── Session restore (after bot restart) ──────────────────────────────────────
+
+export interface UserCurrentKeyResponse {
+  hasKey: boolean;
+  keyId?: number;
+  keyDisplay?: string;
+  plan?: string;
+  valid?: boolean;
+  reason?: string;
+  expiresAt?: string;
+  maxConcurrent?: number;
+  totalUses?: number;
+  maxTotalUses?: number | null;
+  dailyUses?: number;
+  dailyLimit?: number | null;
+  dailyUsesLeft?: number | null;
+  totalUsesLeft?: number | null;
+}
+
+export async function getCurrentUserKey(telegramId: string): Promise<UserCurrentKeyResponse> {
+  try {
+    return await get(`/api/keys/user-current?telegramId=${encodeURIComponent(telegramId)}`);
+  } catch {
+    return { hasKey: false };
+  }
+}
+
+export async function useKeyById(keyId: number, telegramId: string): Promise<UseKeyResponse> {
+  return post("/api/keys/use-by-keyid", { keyId, telegramId });
+}
+
 // ─── Check ────────────────────────────────────────────────────────────────────
 
 export interface CheckResult {
