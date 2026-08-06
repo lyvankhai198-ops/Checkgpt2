@@ -4,7 +4,7 @@ export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
   telegramId: text("telegram_id").notNull(),
   username: text("username"),
-  plan: text("plan", { enum: ["basic", "pro"] }).notNull(),
+  plan: text("plan").notNull(), // any plan slug (basic, pro, etc.)
   amount: integer("amount").notNull(),            // VND price at order time
   orderCode: text("order_code").notNull().unique(), // unique code embedded in transfer description
   status: text("status", {

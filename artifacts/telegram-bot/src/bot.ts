@@ -768,33 +768,21 @@ export function createBot(token: string): Telegraf {
   bot.action("plan_pro",   (ctx) => showPlanDetail(ctx, "pro"));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const showPaymentInfo = async (ctx: any, plan: "basic" | "pro") => {
+  const showPaymentInfo = async (ctx: any, slug: string) => {
     await ctx.answerCbQuery();
-    const [p, plans] = await Promise.all([getPrices(), getPlans()]);
-    const planCfg = plans.find(pl => pl.slug === plan);
-    // Giá lấy từ plansTable (admin quản lý qua trang Gói bán), không dùng settingsTable
-    const priceStr = planCfg ? fmtPlanPrice(planCfg.price) : (plan === "basic" ? p.basicPriceFormatted : p.proPriceFormatted);
-    const emoji = planCfg?.emoji ?? (plan === "basic" ? "🟢" : "🟣");
-    const planName = planCfg?.name ?? (plan === "basic" ? "Basic" : "Pro");
-    const label = `${emoji} ${planName} — ${priceStr}`;
+    const plans = await getPlans();
+    const planCfg = plans.find(pl => pl.slug === slug);
 
-    // Manual payment fallback if payment not configured
-    if (!p.paymentEnabled || !p.bank?.account) {
-      await ctx.replyWithHTML(
-        `💳 <b>Mua gói ${label}</b>\n\n` +
-        "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
-        "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
-        "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
-      );
-      return;
-    }
+    const priceStr = planCfg ? fmtPlanPrice(planCfg.price) : "—";
+    const emoji    = planCfg?.emoji ?? "💳";
+    const planName = planCfg?.name ?? slug;
+    const label    = `${emoji} ${planName} — ${priceStr}`;
 
-    // Create order
     const telegramId = String(ctx.from?.id);
-    const username = ctx.from?.username;
+    const username   = ctx.from?.username;
     try {
-      const order = await createOrder(telegramId, plan, username);
-      if (order.error === "payment_not_configured") throw new Error("not configured");
+      const order = await createOrder(telegramId, slug, username);
+      if (order.error) throw new Error(order.error);
 
       const caption =
         `💳 <b>Thanh toán gói ${label}</b>\n\n` +
@@ -808,17 +796,31 @@ export function createBot(token: string): Telegraf {
 
       await ctx.replyWithPhoto(order.qrUrl, { caption, parse_mode: "HTML" });
     } catch {
-      await ctx.replyWithHTML(
-        `💳 <b>Mua gói ${label}</b>\n\n` +
-        "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
-        "Sau khi nhận key, dán vào chat:\n" +
-        "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
-      );
+      // Bank not configured → fallback manual
+      const p = await getPrices();
+      if (!p.bank?.account) {
+        await ctx.replyWithHTML(
+          `💳 <b>Mua gói ${label}</b>\n\n` +
+          "Vui lòng liên hệ admin để thanh toán và nhận key.\n\n" +
+          "Sau khi nhận key, dán vào chat hoặc dùng:\n" +
+          "<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+        );
+      } else {
+        await ctx.replyWithHTML(
+          `💳 <b>Mua gói ${label}</b>\n\n` +
+          `🏦 Ngân hàng: <b>${p.bank.name}</b>\n` +
+          `💳 Số tài khoản: <code>${p.bank.account}</code>\n` +
+          `👤 Chủ TK: <b>${p.bank.holder}</b>\n` +
+          `💰 Số tiền: <b>${priceStr}</b>\n\n` +
+          "Chuyển khoản và liên hệ admin để nhận key.\n\n" +
+          "Sau khi nhận key:\n<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>"
+        );
+      }
     }
   };
 
-  bot.action("buy_basic", (ctx) => showPaymentInfo(ctx, "basic"));
-  bot.action("buy_pro",   (ctx) => showPaymentInfo(ctx, "pro"));
+  // Dynamic handler: matches buy_basic, buy_pro, buy_<any-slug>
+  bot.action(/^buy_(.+)$/, (ctx) => showPaymentInfo(ctx, (ctx as any).match[1]));
 
   bot.action("help_check", async (ctx) => {
     await ctx.answerCbQuery();

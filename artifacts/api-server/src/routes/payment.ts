@@ -10,10 +10,9 @@ import { Router } from "express";
 import { eq, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
-  ordersTable, licenseKeysTable, settingsTable,
+  ordersTable, licenseKeysTable, settingsTable, plansTable,
   type InsertOrder,
 } from "@workspace/db";
-import { logger as _logger } from "../lib/logger.js";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -44,27 +43,40 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
 }
 
 // ─── Create order (called by bot) ────────────────────────────────────────────
+// Accepts any plan slug. Price comes from plansTable (single source of truth).
+// Payment is considered "enabled" when bank account is configured in settings.
 
 router.post("/payment/orders", async (req, res): Promise<void> => {
   const { telegramId, username, plan } = req.body ?? {};
-  if (!telegramId || !["basic", "pro"].includes(plan)) {
-    res.status(400).json({ error: "telegramId and plan (basic|pro) required" });
+  if (!telegramId || !plan) {
+    res.status(400).json({ error: "telegramId and plan required" });
     return;
   }
 
-  // Get current price from settings
+  // Get bank settings
   const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
-  const amount = plan === "basic" ? (settings?.basicPrice ?? 20000) : (settings?.proPrice ?? 99000);
-  const bankName = settings?.bankName ?? "MB Bank";
-  const bankBin = settings?.bankBin ?? "MB";
+  const bankName    = settings?.bankName    ?? "MB Bank";
+  const bankBin     = settings?.bankBin     ?? "";
   const bankAccount = settings?.bankAccount ?? "";
-  const bankHolder = settings?.bankHolder ?? "";
-  const paymentEnabled = (settings?.paymentEnabled ?? 0) === 1;
+  const bankHolder  = settings?.bankHolder  ?? "";
 
-  if (!paymentEnabled || !bankAccount) {
+  if (!bankAccount) {
     res.status(503).json({ error: "payment_not_configured" });
     return;
   }
+
+  // Get price from plansTable (admin's single source of truth)
+  const [planRow] = await db.select({ price: plansTable.price, enabled: plansTable.enabled })
+    .from(plansTable)
+    .where(eq(plansTable.slug, String(plan)))
+    .limit(1);
+
+  if (!planRow || !planRow.enabled) {
+    res.status(404).json({ error: "plan_not_found_or_disabled" });
+    return;
+  }
+
+  const amount = planRow.price;
 
   // Cancel any existing pending orders for this user+plan
   await db
@@ -72,7 +84,7 @@ router.post("/payment/orders", async (req, res): Promise<void> => {
     .set({ status: "expired" })
     .where(and(
       eq(ordersTable.telegramId, telegramId),
-      eq(ordersTable.plan, plan as "basic" | "pro"),
+      eq(ordersTable.plan, String(plan)),
       eq(ordersTable.status, "pending"),
     ));
 
@@ -82,11 +94,11 @@ router.post("/payment/orders", async (req, res): Promise<void> => {
   const [order] = await db.insert(ordersTable).values({
     telegramId,
     username: username ?? null,
-    plan: plan as "basic" | "pro",
+    plan: String(plan),
     amount,
     orderCode,
     expiresAt,
-  } satisfies InsertOrder).returning();
+  } as InsertOrder).returning();
 
   // VietQR URL
   const fmtAmount = amount.toLocaleString("vi-VN");
@@ -133,7 +145,6 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
   }
 
   // Find order code in the transfer content (description)
-  // Order codes are like ORDXXXXXXXX
   const match = String(content).match(/ORD[A-Z0-9]{8}/i);
   if (!match) {
     logger.info({ content }, "SePay webhook: no order code found in content");
@@ -194,12 +205,18 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
     ))
     .limit(1);
 
+  // Get plan display info from plansTable
+  const [planRow] = await db.select({ name: plansTable.name, emoji: plansTable.emoji })
+    .from(plansTable)
+    .where(eq(plansTable.slug, order.plan))
+    .limit(1);
+  const planLabel = planRow ? `${planRow.emoji} ${planRow.name}` : order.plan;
+
   if (!availableKey) {
-    // No key available — notify admin via Telegram (admin chat id if set)
     logger.error({ plan: order.plan, orderCode }, "SePay webhook: no available key for plan");
     await sendTelegram(order.telegramId,
       `✅ <b>Thanh toán thành công!</b>\n\n` +
-      `⚠️ Hệ thống tạm thời hết key ${order.plan === "basic" ? "Basic" : "Pro"}.\n` +
+      `⚠️ Hệ thống tạm thời hết key gói ${planLabel}.\n` +
       `Admin sẽ giao key cho bạn sớm nhất. Xin lỗi vì sự bất tiện này.`
     );
     await db.update(ordersTable).set({ status: "failed" }).where(eq(ordersTable.id, order.id));
@@ -215,7 +232,6 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
   }).where(eq(ordersTable.id, order.id));
 
   // Deliver key to user via Telegram
-  const planLabel = order.plan === "basic" ? "🟢 Basic" : "🟣 Pro";
   await sendTelegram(order.telegramId,
     `🎉 <b>Thanh toán thành công! Key của bạn đây:</b>\n\n` +
     `<code>${availableKey.keyDisplay}</code>\n\n` +
