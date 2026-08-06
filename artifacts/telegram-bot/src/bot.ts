@@ -260,28 +260,44 @@ async function handleCredentialInput(ctx: Context, raw: string) {
   // Nothing recognised at all — stay silent (might be unrelated text)
   if (valid.length === 0 && errors.length === 0) return;
 
-  // Build preview
-  const preview: string[] = [];
-  if (valid.length > 0) {
-    preview.push(`📋 <b>Nhận diện được ${valid.length} tài khoản:</b>`);
-    valid.forEach((c, i) => preview.push(`  ${i + 1}. ${maskCred(c)}`));
-  }
-  if (errors.length > 0) {
-    if (preview.length) preview.push("");
-    preview.push(`⚠️ <b>${errors.length} dòng lỗi (bỏ qua):</b>`);
-    errors.forEach(e => preview.push(`  • ${e}`));
-  }
-
   if (valid.length === 0) {
-    await ctx.replyWithHTML(preview.join("\n"));
+    const errLines: string[] = [`⚠️ <b>${errors.length} dòng lỗi (bỏ qua):</b>`];
+    errors.forEach(e => errLines.push(`  • ${e}`));
+    await ctx.replyWithHTML(errLines.join("\n"));
     return;
   }
 
-  await ctx.replyWithHTML(preview.join("\n"));
-
-  // Gate access
-  const access = await resolveAccess(ctx);
+  // ── Gate access FIRST — before showing the preview ───────────────────────────
+  // This ensures users with exhausted trials see "buy key" options,
+  // and API errors are caught gracefully before we send any preview.
+  let access: Awaited<ReturnType<typeof resolveAccess>>;
+  try {
+    access = await resolveAccess(ctx);
+  } catch {
+    // API temporarily unavailable — show buy-key fallback instead of crashing
+    const uid = ctx.from!.id;
+    const lang: Lang = getSession(uid).lang ?? "vi";
+    const plans = await getPlans().catch(() => [] as PlanConfig[]);
+    const enabled = plans.filter(p => p.enabled);
+    await ctx.replyWithHTML(
+      l(lang, "trialExhausted", { limit: String(TRIAL_LIMIT) }),
+      enabled.length > 0
+        ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
+        : Markup.inlineKeyboard([[Markup.button.callback(l(lang, "buyBtn"), "buy_key")]])
+    );
+    return;
+  }
   if (!access.allowed) return;
+
+  // ── Show preview only after access is confirmed ───────────────────────────────
+  const preview: string[] = [`📋 <b>Nhận diện được ${valid.length} tài khoản:</b>`];
+  valid.forEach((c, i) => preview.push(`  ${i + 1}. ${maskCred(c)}`));
+  if (errors.length > 0) {
+    preview.push("");
+    preview.push(`⚠️ <b>${errors.length} dòng lỗi (bỏ qua):</b>`);
+    errors.forEach(e => preview.push(`  • ${e}`));
+  }
+  await ctx.replyWithHTML(preview.join("\n"));
 
   let keyId: number | undefined;
   if (access.mode === "key") keyId = access.keyId;
