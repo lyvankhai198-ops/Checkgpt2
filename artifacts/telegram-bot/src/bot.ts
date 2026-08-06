@@ -402,7 +402,7 @@ export function createBot(token: string): Telegraf {
         `👋 Chào <b>${escHtml(name)}</b>! Tôi là <b>GPT Checker Bot</b> 🤖\n\n` +
         `Tool kiểm tra tài khoản ChatGPT nhanh nhất Việt Nam.\n\n` +
         `🎁 Bạn có <b>${trial.remaining}/${TRIAL_LIMIT}</b> lần dùng thử miễn phí.\n\n` +
-        `Nhấn nút bên dưới hoặc dán thẳng <code>email|password</code> vào chat để check ngay!`,
+        `Dán <code>email|password|2fa</code> vào ô chat để check ngay!`,
         TRIAL_KEYBOARD
       );
       return;
