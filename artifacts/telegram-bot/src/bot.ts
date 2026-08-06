@@ -139,12 +139,17 @@ async function resolveAccess(ctx: Context): Promise<
     }
   }
 
-  // No trial left, no key
+  // No trial left, no key → inline buy options + switch keyboard to Activate Key
   const lang2: Lang = getSession(uid).lang ?? "vi";
+  const plans2 = await getPlans().catch(() => [] as PlanConfig[]);
+  const enabled2 = plans2.filter(p => p.enabled);
   await ctx.replyWithHTML(
     l(lang2, "trialExhausted", { limit: String(TRIAL_LIMIT) }),
-    Markup.inlineKeyboard([[Markup.button.callback(l(lang2, "buyBtn"), "buy_key")]])
+    enabled2.length > 0
+      ? Markup.inlineKeyboard(enabled2.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
+      : Markup.inlineKeyboard([[Markup.button.callback(l(lang2, "buyBtn"), "buy_key")]])
   );
+  await ctx.replyWithHTML(l(lang2, "haveKey"), activateKeyboard(lang2));
   return { allowed: false };
 }
 
@@ -388,6 +393,11 @@ const TRIAL_KB_EN  = Markup.keyboard([[BTN_EN.TRY]]).resize();
 function mainKeyboard(lang: Lang)  { return lang === "en" ? MAIN_KB_EN  : MAIN_KB_VI;  }
 function trialKeyboard(lang: Lang) { return lang === "en" ? TRIAL_KB_EN : TRIAL_KB_VI; }
 
+/** Phase 2 keyboard — shown when trial exhausted and no key yet */
+const ACTIVATE_KB_VI = Markup.keyboard([[BTN_VI.ACTIVATE]]).resize();
+const ACTIVATE_KB_EN = Markup.keyboard([[BTN_EN.ACTIVATE]]).resize();
+function activateKeyboard(lang: Lang) { return lang === "en" ? ACTIVATE_KB_EN : ACTIVATE_KB_VI; }
+
 // ─── Bot setup ────────────────────────────────────────────────────────────────
 
 export function createBot(token: string): Telegraf {
@@ -447,7 +457,7 @@ export function createBot(token: string): Telegraf {
       return;
     }
 
-    // Phase 2: Trial exhausted, never bought → inline buy (no reply keyboard)
+    // Phase 2: Trial exhausted, never bought → inline buy options + switch keyboard to Activate Key
     const plans = await getPlans();
     const enabled = plans.filter(p => p.enabled);
     await ctx.replyWithHTML(
@@ -456,6 +466,8 @@ export function createBot(token: string): Telegraf {
         ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
         : Markup.inlineKeyboard([[Markup.button.callback(l(lang, "contactAdmin"), "contact_admin")]])
     );
+    // Switch reply keyboard: remove "Free Trial", show "Activate Key" instead
+    await ctx.replyWithHTML(l(lang, "haveKey"), activateKeyboard(lang));
   });
 
   // ── /help ───────────────────────────────────────────────────────────────────
@@ -884,6 +896,7 @@ export function createBot(token: string): Telegraf {
             ? Markup.inlineKeyboard(enabled.map(p => [Markup.button.callback(`${p.emoji} ${p.name}  —  ${fmtPlanPrice(p.price)}`, `plan_${p.slug}`)]))
             : Markup.inlineKeyboard([[Markup.button.callback(l(lang, "contactAdmin"), "contact_admin")]])
         );
+        await ctx.replyWithHTML(l(lang, "haveKey"), activateKeyboard(lang));
       }
     }
   }
@@ -1098,6 +1111,7 @@ export function createBot(token: string): Telegraf {
 
       if (result.success) {
         setSession(uid, { activeKey: key });
+        const _lang = getLang(uid);
         const lines = [
           "✅ <b>Key kích hoạt thành công!</b>",
           "",
@@ -1112,9 +1126,9 @@ export function createBot(token: string): Telegraf {
             ? `🔢 Tổng lượt: <b>${result.maxTotalUses}</b>`
             : "🔢 Tổng lượt: Không giới hạn",
           "",
-          "Dùng /check hoặc dán tài khoản vào chat để bắt đầu kiểm tra.",
+          _lang === "en" ? "Paste <code>email|password</code> into chat to start checking!" : "Dán <code>email|password</code> vào chat để bắt đầu check ngay!",
         ];
-        await ctx.replyWithHTML(lines.join("\n"));
+        await ctx.replyWithHTML(lines.join("\n"), mainKeyboard(_lang));
       } else {
         const reasons: Record<string, string> = {
           not_found: "❌ Key không tồn tại hoặc đã nhập sai.",

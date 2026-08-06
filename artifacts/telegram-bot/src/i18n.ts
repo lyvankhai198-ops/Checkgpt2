@@ -129,6 +129,12 @@ const T = {
     en: "<b>📖 Help & Guide</b>\n\n<b>✨ Paste directly into chat — no commands needed:</b>\n\n🔑 <b>Activate key:</b>\n<code>KGPT-XXXXXX-XXXXXX-XXXXXX</code>\n\n🔍 <b>Check account:</b>\n<code>email|password</code>\n<code>email|password|TOTP_SECRET</code>\nMultiple accounts: one per line\n\n<b>📋 Quick commands:</b>\n/check — Check account in chat\n/bulk — Upload file for bulk check\n/status — View key status\n/lang — Change language\n\n<b>Note:</b> New users get {{limit}} free trial uses.",
   },
   langBtn: { vi: "🌐 Đổi ngôn ngữ", en: "🌐 Change language" },
+
+  // ── Phase 2: trial exhausted, have a key? ────────────────────────────────
+  haveKey: {
+    vi: "🔑 Đã có key? Nhấn bên dưới để kích hoạt:",
+    en: "🔑 Already have a key? Tap below to activate:",
+  },
 };
 
 export type StringKey = keyof typeof T;
