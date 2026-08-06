@@ -442,6 +442,7 @@ export async function getOrCreateUser(telegramId: string, info?: { username?: st
     username: info?.username ?? null,
     firstName: info?.firstName ?? null,
     trialCount: 0,
+    language: null,   // always null so bot shows language selector on first /start
   }).returning();
   return created;
 }
