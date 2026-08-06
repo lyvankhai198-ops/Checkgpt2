@@ -252,6 +252,7 @@ async function runBulkCheck(ctx: Context, lines: string[]) {
 // ─── Shared credential-input handler (used by /check + plain-text) ───────────
 
 async function handleCredentialInput(ctx: Context, raw: string) {
+  const uid = ctx.from!.id;
   const { valid, errors } = parseCredentials(raw);
 
   // Nothing recognised at all — stay silent (might be unrelated text)
@@ -272,7 +273,6 @@ async function handleCredentialInput(ctx: Context, raw: string) {
     access = await resolveAccess(ctx);
   } catch {
     // API temporarily unavailable — show buy-key fallback, never re-throw
-    const uid = ctx.from!.id;
     const lang: Lang = getSession(uid).lang ?? "vi";
     try {
       const plans = await getPlans().catch(() => [] as PlanConfig[]);
