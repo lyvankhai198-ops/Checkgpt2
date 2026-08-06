@@ -15,6 +15,7 @@ export const ordersTable = pgTable("orders", {
   paidAt: timestamp("paid_at", { withTimezone: true }),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }), // order expires if not paid in time
+  qrMessageId: integer("qr_message_id"),                      // Telegram message_id of QR photo (for deletion)
 });
 
 export type Order = typeof ordersTable.$inferSelect;

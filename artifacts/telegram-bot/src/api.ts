@@ -109,8 +109,16 @@ export interface OrderResponse {
   error?: string;
 }
 
-export async function createOrder(telegramId: string, plan: "basic" | "pro", username?: string): Promise<OrderResponse> {
+export async function createOrder(telegramId: string, plan: string, username?: string): Promise<OrderResponse> {
   return post<OrderResponse>("/api/payment/orders", { telegramId, plan, username });
+}
+
+export async function saveOrderQrMessageId(orderId: number, messageId: number): Promise<void> {
+  try {
+    await post<unknown>(`/api/payment/orders/${orderId}/qr-message`, { messageId });
+  } catch {
+    // non-critical — deletion is best-effort
+  }
 }
 
 let _pricesCache: PricesResponse | null = null;

@@ -42,6 +42,21 @@ async function sendTelegram(chatId: string, text: string): Promise<void> {
   }
 }
 
+/** Delete a Telegram message (best-effort — ignores errors) */
+async function deleteTelegramMessage(chatId: string, messageId: number): Promise<void> {
+  const token = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!token || !messageId) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+    });
+  } catch {
+    // non-critical
+  }
+}
+
 // ─── Create order (called by bot) ────────────────────────────────────────────
 // Accepts any plan slug. Price comes from plansTable (single source of truth).
 // Payment is considered "enabled" when bank account is configured in settings.
@@ -114,6 +129,21 @@ router.post("/payment/orders", async (req, res): Promise<void> => {
     bank: { name: bankName, account: bankAccount, holder: bankHolder },
     qrUrl,
   });
+});
+
+// ─── Save QR message_id (called by bot after sending QR photo) ───────────────
+
+router.post("/payment/orders/:id/qr-message", async (req, res): Promise<void> => {
+  const orderId = Number(req.params["id"]);
+  const { messageId } = req.body ?? {};
+  if (!orderId || !messageId) {
+    res.status(400).json({ error: "orderId and messageId required" });
+    return;
+  }
+  await db.update(ordersTable)
+    .set({ qrMessageId: Number(messageId) })
+    .where(eq(ordersTable.id, orderId));
+  res.json({ ok: true });
 });
 
 // ─── SePay webhook ───────────────────────────────────────────────────────────
@@ -192,6 +222,7 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
   }
 
   // Mark order as paid
+  const qrMessageId = order.qrMessageId;
   await db.update(ordersTable)
     .set({ status: "paid", paidAt: new Date() })
     .where(eq(ordersTable.id, order.id));
@@ -230,6 +261,11 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
     keyId: availableKey.id,
     deliveredAt: new Date(),
   }).where(eq(ordersTable.id, order.id));
+
+  // Delete QR code message (best-effort)
+  if (qrMessageId) {
+    await deleteTelegramMessage(order.telegramId, qrMessageId);
+  }
 
   // Deliver key to user via Telegram
   await sendTelegram(order.telegramId,

@@ -1,7 +1,7 @@
 import { Telegraf, Markup, type Context } from "telegraf";
 import {
   checkTrial, useTrial, validateKey, activateKey,
-  useKey, useKeyById, releaseKey, checkSingle, checkBulk, getPrices, createOrder,
+  useKey, useKeyById, releaseKey, checkSingle, checkBulk, getPrices, createOrder, saveOrderQrMessageId,
   getPlans, fmtPlanPrice, getCurrentUserKey,
   type CheckResult, type ValidateResponse, type PlanConfig, type UserCurrentKeyResponse,
 } from "./api.js";
@@ -794,7 +794,11 @@ export function createBot(token: string): Telegraf {
         `⚠️ <b>Nhập đúng nội dung chuyển khoản — hệ thống tự giao key sau khi nhận tiền!</b>\n\n` +
         `⏰ Đơn hàng hết hạn sau 30 phút.`;
 
-      await ctx.replyWithPhoto(order.qrUrl, { caption, parse_mode: "HTML" });
+      const sent = await ctx.replyWithPhoto(order.qrUrl, { caption, parse_mode: "HTML" });
+      // Save message_id so webhook can delete QR after payment
+      if (sent?.message_id) {
+        await saveOrderQrMessageId(order.orderId, sent.message_id);
+      }
     } catch {
       // Bank not configured → fallback manual
       const p = await getPrices();
