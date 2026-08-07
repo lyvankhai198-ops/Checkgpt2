@@ -205,11 +205,11 @@ router.post("/keys/trial/check", keyLimiter, async (req, res): Promise<void> => 
 // ─── User language preference ─────────────────────────────────────────────────
 
 router.post("/users/language", keyLimiter, async (req, res): Promise<void> => {
-  const { telegramId, language } = req.body ?? {};
+  const { telegramId, language, username, firstName } = req.body ?? {};
   if (!telegramId || !["vi", "en"].includes(language)) {
     res.status(400).json({ error: "telegramId and language (vi|en) required" }); return;
   }
-  await getOrCreateUser(String(telegramId));
+  await getOrCreateUser(String(telegramId), { username, firstName });
   await db.update(usersTable).set({ language }).where(eq(usersTable.telegramId, String(telegramId)));
   res.json({ ok: true });
 });

@@ -873,7 +873,7 @@ export function createBot(token: string): Telegraf {
     const uid = ctx.from?.id;
     const telegramId = String(uid);
     setSession(uid, { lang });
-    await saveUserLanguage(telegramId, lang);
+    await saveUserLanguage(telegramId, lang, { username: ctx.from?.username, firstName: ctx.from?.first_name });
     const name = ctx.from?.first_name ?? (lang === "en" ? "you" : "bạn");
     await ctx.replyWithHTML(l(lang, "langChanged"), { reply_markup: undefined });
 

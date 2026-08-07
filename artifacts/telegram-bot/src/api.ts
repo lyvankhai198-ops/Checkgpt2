@@ -114,8 +114,8 @@ export async function createOrder(telegramId: string, plan: string, username?: s
   return post<OrderResponse>("/api/payment/orders", { telegramId, plan, username });
 }
 
-export async function saveUserLanguage(telegramId: string, language: "vi" | "en"): Promise<void> {
-  try { await post<unknown>("/api/users/language", { telegramId, language }); } catch { /* non-critical */ }
+export async function saveUserLanguage(telegramId: string, language: "vi" | "en", info?: { username?: string; firstName?: string }): Promise<void> {
+  try { await post<unknown>("/api/users/language", { telegramId, language, ...info }); } catch { /* non-critical */ }
 }
 
 export async function getUserLanguage(telegramId: string): Promise<"vi" | "en" | null> {

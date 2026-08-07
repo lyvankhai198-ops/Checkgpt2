@@ -435,7 +435,25 @@ export async function setKeyExpiry(keyId: number, expiresAt: Date): Promise<void
 
 export async function getOrCreateUser(telegramId: string, info?: { username?: string; firstName?: string }) {
   const existing = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
-  if (existing[0]) return existing[0];
+  if (existing[0]) {
+    // Update name fields if we have fresh info and the stored values are missing
+    const needsUpdate =
+      (info?.username && !existing[0].username) ||
+      (info?.firstName && !existing[0].firstName);
+    if (needsUpdate) {
+      const [updated] = await db
+        .update(usersTable)
+        .set({
+          ...(info?.username   ? { username:   info.username }   : {}),
+          ...(info?.firstName  ? { firstName:  info.firstName }  : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(usersTable.telegramId, telegramId))
+        .returning();
+      return updated;
+    }
+    return existing[0];
+  }
 
   const [created] = await db.insert(usersTable).values({
     telegramId,
