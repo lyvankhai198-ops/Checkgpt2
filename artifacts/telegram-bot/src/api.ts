@@ -172,6 +172,8 @@ export interface ValidateResponse {
   valid: boolean;
   reason?: string;
   plan?: string;          // "basic" | "pro"
+  planName?: string;      // display name e.g. "Pro"
+  planEmoji?: string;     // plan emoji e.g. "🟣"
   expiresAt?: string;
   maxConcurrent?: number;
   bulkEnabled?: boolean;

@@ -719,6 +719,11 @@ export function createBot(token: string): Telegraf {
       return lines;
     }
 
+    // Plan info
+    if (v.planName) {
+      const pEmoji = v.planEmoji ?? "🔑";
+      lines.push(`${pEmoji} Gói: <b>${escHtml(v.planName)}</b>`);
+    }
     lines.push(`🟢 Trạng thái: <b>Hợp lệ</b>`);
 
     // Expiry

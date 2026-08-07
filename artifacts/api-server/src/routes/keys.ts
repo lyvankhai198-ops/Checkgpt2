@@ -41,12 +41,18 @@ router.get("/keys/validate", keyLimiter, async (req, res): Promise<void> => {
   const result = await validateKey(rawKey, { telegramId, checkConcurrency: false });
   const k = result.key;
   const planSlug = k?.plan ?? "basic";
-  const [planRow] = await db.select({ bulkEnabled: plansTable.bulkEnabled, maxBulkLines: plansTable.maxBulkLines })
-    .from(plansTable).where(eq(plansTable.slug, planSlug)).limit(1);
+  const [planRow] = await db.select({
+    bulkEnabled: plansTable.bulkEnabled,
+    maxBulkLines: plansTable.maxBulkLines,
+    name: plansTable.name,
+    emoji: plansTable.emoji,
+  }).from(plansTable).where(eq(plansTable.slug, planSlug)).limit(1);
   res.json({
     valid: result.valid,
     reason: result.reason,
     plan: planSlug,
+    planName: planRow?.name ?? planSlug,
+    planEmoji: planRow?.emoji ?? "🔑",
     expiresAt: k?.expiresAt,
     maxConcurrent: k?.maxConcurrent ?? 1,
     bulkEnabled: planRow?.bulkEnabled ?? false,
