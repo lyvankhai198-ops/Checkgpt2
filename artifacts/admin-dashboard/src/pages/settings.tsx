@@ -33,6 +33,8 @@ const settingsSchema = z.object({
   // Payment — USDT
   usdtWallet: z.string().optional(),
   usdtRateVnd: z.coerce.number().min(1000).default(25000),
+  // Admin contact shown in payment messages
+  adminContact: z.string().optional(),
 });
 
 export default function Settings() {
@@ -82,6 +84,7 @@ export default function Settings() {
         sepayApiKey: data.settings.sepayApiKey ? "" : "", // always blank — masked server-side
         usdtWallet: (data.settings as any).usdtWallet ?? "",
         usdtRateVnd: (data.settings as any).usdtRateVnd ?? 25000,
+        adminContact: (data.settings as any).adminContact ?? "",
       });
     }
   }, [data, form]);
@@ -329,6 +332,16 @@ export default function Settings() {
                     <Input type="number" placeholder="25000" className="bg-background" {...field} />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">Ví dụ: 25000 = 1 USDT ≈ 25.000đ. Bot dùng tỷ giá này để tính số USDT cần chuyển.</p>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="adminContact" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>📞 Liên hệ admin (hiển thị trong tin nhắn thanh toán)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="@username hoặc https://t.me/username" className="bg-background" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">Bot sẽ hiển thị thông tin này sau khi khách thanh toán USDT hoặc khi chưa cấu hình bank. VD: @admin123</p>
                   <FormMessage />
                 </FormItem>
               )} />

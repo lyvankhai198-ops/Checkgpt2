@@ -20,6 +20,7 @@ const DEFAULT_PLANS = [
     slug: "basic",
     name: "Basic",
     emoji: "🟢",
+    color: "#22c55e",
     enabled: true,
     price: 20000,
     description:
@@ -41,6 +42,7 @@ const DEFAULT_PLANS = [
     slug: "pro",
     name: "Pro",
     emoji: "🟣",
+    color: "#a855f7",
     enabled: true,
     price: 99000,
     description:
@@ -88,7 +90,7 @@ router.get("/admin/plans", adminAuthMiddleware, async (_req, res): Promise<void>
 router.put("/admin/plans/:slug", adminAuthMiddleware, async (req, res): Promise<void> => {
   const { slug } = req.params;
   const {
-    name, emoji, enabled, price, description,
+    name, emoji, color, enabled, price, description,
     durationDays, maxTotalUses, dailyLimit, maxConcurrent, bulkEnabled, maxBulkLines,
   } = req.body ?? {};
 
@@ -107,6 +109,7 @@ router.put("/admin/plans/:slug", adminAuthMiddleware, async (req, res): Promise<
     .set({
       ...(name !== undefined && { name }),
       ...(emoji !== undefined && { emoji }),
+      ...(color !== undefined && { color: color || null }),
       ...(enabled !== undefined && { enabled: Boolean(enabled) }),
       ...(price !== undefined && { price: Number(price) }),
       ...(description !== undefined && { description }),
@@ -122,6 +125,60 @@ router.put("/admin/plans/:slug", adminAuthMiddleware, async (req, res): Promise<
     .returning();
 
   res.json(updated);
+});
+
+// ─── Admin: create new plan ───────────────────────────────────────────────────
+
+router.post("/admin/plans", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const {
+    slug, name, emoji, color, enabled, price, description,
+    durationDays, maxTotalUses, dailyLimit, maxConcurrent, bulkEnabled, maxBulkLines,
+  } = req.body ?? {};
+
+  if (!slug || !name || price === undefined) {
+    res.status(400).json({ error: "slug, name, price are required" });
+    return;
+  }
+
+  // Validate slug format
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    res.status(400).json({ error: "slug must be lowercase alphanumeric and hyphens only" });
+    return;
+  }
+
+  const existing = await db.select({ id: plansTable.id }).from(plansTable).where(eq(plansTable.slug, slug)).limit(1);
+  if (existing[0]) {
+    res.status(409).json({ error: "Slug already exists" });
+    return;
+  }
+
+  const [created] = await db.insert(plansTable).values({
+    slug,
+    name,
+    emoji: emoji || "🟡",
+    color: color || null,
+    enabled: enabled !== false,
+    price: Number(price),
+    description: description || "",
+    durationDays: durationDays ? Number(durationDays) : null,
+    maxTotalUses: maxTotalUses ? Number(maxTotalUses) : null,
+    dailyLimit: dailyLimit ? Number(dailyLimit) : null,
+    maxConcurrent: Number(maxConcurrent ?? 1),
+    bulkEnabled: Boolean(bulkEnabled),
+    maxBulkLines: Number(maxBulkLines ?? 10),
+  }).returning();
+
+  res.status(201).json(created);
+});
+
+// ─── Admin: delete plan ───────────────────────────────────────────────────────
+
+router.delete("/admin/plans/:slug", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const { slug } = req.params;
+  const existing = await db.select({ id: plansTable.id }).from(plansTable).where(eq(plansTable.slug, slug)).limit(1);
+  if (!existing[0]) { res.status(404).json({ error: "Plan not found" }); return; }
+  await db.delete(plansTable).where(eq(plansTable.slug, slug));
+  res.json({ ok: true });
 });
 
 export default router;

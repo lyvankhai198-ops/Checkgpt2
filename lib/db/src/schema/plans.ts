@@ -14,6 +14,7 @@ export const plansTable = pgTable("plans", {
   maxConcurrent: integer("max_concurrent").notNull().default(1),
   bulkEnabled: boolean("bulk_enabled").notNull().default(false),
   maxBulkLines: integer("max_bulk_lines").notNull().default(10), // max accounts per bulk submission
+  color: text("color"),                                          // hex accent color e.g. "#6366f1"
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

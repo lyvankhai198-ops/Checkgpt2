@@ -930,6 +930,8 @@ export function createBot(token: string): Telegraf {
 
     // For English users with USDT wallet configured → show USDT payment (manual)
     const p = await getPrices();
+    const adminContact = p.adminContact || "admin";
+
     if (lang === "en" && p.usdt?.wallet) {
       try {
         const order = await createOrder(telegramId, slug, username);
@@ -937,10 +939,10 @@ export function createBot(token: string): Telegraf {
         const usdtAmount = (order.amount / (p.usdt.rateVnd || 25000)).toFixed(2);
         const rate = (p.usdt.rateVnd || 25000).toLocaleString("vi-VN");
         await ctx.replyWithHTML(l(lang, "paymentUsdt", {
-          label, usdtAmount, wallet: p.usdt.wallet, orderCode: order.orderCode, rate,
+          label, usdtAmount, wallet: p.usdt.wallet, orderCode: order.orderCode, rate, adminContact,
         }));
       } catch {
-        await ctx.replyWithHTML(l(lang, "paymentNoConfig", { label }));
+        await ctx.replyWithHTML(l(lang, "paymentNoConfig", { label, adminContact }));
       }
       return;
     }
@@ -962,7 +964,7 @@ export function createBot(token: string): Telegraf {
       const sent = await ctx.replyWithPhoto(order.qrUrl, { caption, parse_mode: "HTML" });
       if (sent?.message_id) await saveOrderQrMessageId(order.orderId, sent.message_id);
     } catch {
-      await ctx.replyWithHTML(l(lang, "paymentNoConfig", { label }));
+      await ctx.replyWithHTML(l(lang, "paymentNoConfig", { label, adminContact }));
     }
   };
 

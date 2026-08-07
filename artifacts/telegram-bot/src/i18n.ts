@@ -71,12 +71,12 @@ const T = {
   },
   // ── Payment — USDT (manual, English users) ────────────────────────────────
   paymentUsdt: {
-    vi: "💰 <b>Thanh toán USDT gói {{label}}</b>\n\n💎 Gửi <b>{{usdtAmount}} USDT</b> (TRC20) đến ví:\n<code>{{wallet}}</code>\n\n📝 Nội dung: <code>{{orderCode}}</code>\n\n⚠️ <b>Sau khi gửi, chụp ảnh giao dịch và nhắn cho admin để nhận key.</b>\n\nTỷ giá tham khảo: 1 USDT ≈ {{rate}}đ",
-    en: "💰 <b>USDT Payment for {{label}} plan</b>\n\n💎 Send <b>{{usdtAmount}} USDT</b> (TRC20) to this wallet:\n<code>{{wallet}}</code>\n\n📝 Note: <code>{{orderCode}}</code>\n\n⚠️ <b>After sending, share your transaction screenshot with admin to receive your key.</b>\n\nRate: 1 USDT ≈ {{rate}} VND",
+    vi: "💰 <b>Thanh toán USDT gói {{label}}</b>\n\n💎 Gửi <b>{{usdtAmount}} USDT</b> (TRC20) đến ví:\n<code>{{wallet}}</code>\n\n📝 Nội dung: <code>{{orderCode}}</code>\n\n⚠️ <b>Sau khi gửi, chụp ảnh giao dịch và liên hệ {{adminContact}} để nhận key.</b>\n\nTỷ giá tham khảo: 1 USDT ≈ {{rate}}đ",
+    en: "💰 <b>USDT Payment for {{label}} plan</b>\n\n💎 Send <b>{{usdtAmount}} USDT</b> (TRC20) to this wallet:\n<code>{{wallet}}</code>\n\n📝 Note: <code>{{orderCode}}</code>\n\n⚠️ <b>After sending, share your transaction screenshot with {{adminContact}} to receive your key.</b>\n\nRate: 1 USDT ≈ {{rate}} VND",
   },
   paymentNoConfig: {
-    vi: "💳 <b>Mua gói {{label}}</b>\n\nVui lòng liên hệ admin để thanh toán và nhận key.\n\nSau khi nhận key:\n<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>",
-    en: "💳 <b>Buy {{label}} plan</b>\n\nPlease contact admin to make payment and receive your key.\n\nOnce you have your key:\n<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>",
+    vi: "💳 <b>Mua gói {{label}}</b>\n\nVui lòng liên hệ {{adminContact}} để thanh toán và nhận key.\n\nSau khi nhận key:\n<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>",
+    en: "💳 <b>Buy {{label}} plan</b>\n\nPlease contact {{adminContact}} to make payment and receive your key.\n\nOnce you have your key:\n<code>/activate KGPT-XXXXXX-XXXXXX-XXXXXX</code>",
   },
 
   // ── Check ─────────────────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ export const settingsTable = pgTable("settings", {
   // USDT payment (manual)
   usdtWallet: text("usdt_wallet"),                      // TRC20 wallet address
   usdtRateVnd: integer("usdt_rate_vnd").default(25000), // VND per 1 USDT
+  adminContact: text("admin_contact"),                  // e.g. "@myusername" or "https://t.me/myusername"
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -97,6 +97,7 @@ export interface PricesResponse {
   paymentEnabled?: boolean;
   bank?: { name: string; bin: string; account: string; holder: string };
   usdt?: { wallet: string; rateVnd: number };
+  adminContact?: string | null;
 }
 
 export interface OrderResponse {

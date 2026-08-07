@@ -400,9 +400,10 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
   const { sepayApiKey } = req.body ?? {};
   if (sepayApiKey && sepayApiKey !== "***set***") updates.sepayApiKey = sepayApiKey;
 
-  const { usdtWallet, usdtRateVnd } = req.body ?? {};
+  const { usdtWallet, usdtRateVnd, adminContact } = req.body ?? {};
   if (usdtWallet !== undefined) updates.usdtWallet = usdtWallet || null;
   if (usdtRateVnd !== undefined) updates.usdtRateVnd = Number(usdtRateVnd) || 25000;
+  if (adminContact !== undefined) updates.adminContact = adminContact || null;
 
   const upsertValues: InsertSettings = { id: 1, updatedAt: new Date() };
   Object.assign(upsertValues, updates);
@@ -447,6 +448,7 @@ router.get("/prices", async (_req, res): Promise<void> => {
       wallet: settings?.usdtWallet ?? "",
       rateVnd: settings?.usdtRateVnd ?? 25000,
     },
+    adminContact: settings?.adminContact ?? null,
   });
 });
 
