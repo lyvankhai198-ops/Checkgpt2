@@ -1102,15 +1102,15 @@ export function createBot(token: string): Telegraf {
     // Ignore reply-keyboard button texts (handled by bot.hears above)
     if (KEYBOARD_TEXTS.has(raw as typeof BTN[keyof typeof BTN])) return;
 
-    // Ignore if user is waiting for bulk file upload
-    const session = getSession(uid);
-    if (session.waitingBulk) return;
-
     if (!await guardRate(ctx)) return;
 
-    // ── Case 1: looks like a KGPT key → auto activate ──────────────────────
+    // ── Case 1: looks like a KGPT key → auto activate (always, even if waitingBulk)
     const key = parseKey(raw);
     if (key) {
+      // If user was waiting to upload a bulk file, cancel that state first
+      const session = getSession(uid);
+      if (session.waitingBulk) setSession(uid, { waitingBulk: false });
+
       const telegramId = String(uid);
       const thinkMsg = await ctx.reply("⏳ Đang kích hoạt key...");
       const result = await activateKey({
