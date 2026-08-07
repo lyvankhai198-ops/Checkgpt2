@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import {
   useListKeys,
   getListKeysQueryKey,
@@ -11,6 +11,7 @@ import {
   getGetInventoryQueryKey,
   useAutoStock,
   useDeleteAllKeys,
+  useAdminGetPlans,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,7 @@ const createKeySchema = z.object({
   allowedTelegramId: z.string().optional(),
   lockToTelegram: z.boolean().default(false),
   note: z.string().optional(),
-  plan: z.enum(["basic", "pro"]).optional(),
+  plan: z.string().optional(),
 });
 
 export default function Keys() {
@@ -90,6 +91,12 @@ export default function Keys() {
     query: { queryKey: getGetInventoryQueryKey(), refetchInterval: 30_000 },
   });
 
+  const getPlans = useAdminGetPlans();
+  const { data: plansData } = useQuery({
+    queryKey: ["admin-plans"],
+    queryFn: () => getPlans(),
+  });
+
   const createMutation = useCreateKeys();
   const updateMutation = useUpdateKey();
   const autoStockMutation = useAutoStock();
@@ -105,7 +112,7 @@ export default function Keys() {
     onError: () => toast({ title: "❌ Lỗi xoá key", variant: "destructive" }),
   });
 
-  const handleAutoStock = (plan: "basic" | "pro") => {
+  const handleAutoStock = (plan: string) => {
     autoStockMutation.mutate(
       { data: { plan } },
       {
@@ -339,8 +346,9 @@ export default function Keys() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="">Tuỳ chỉnh</SelectItem>
-                            <SelectItem value="basic">🟢 Basic</SelectItem>
-                            <SelectItem value="pro">🟣 Pro</SelectItem>
+                            {(plansData ?? []).map(p => (
+                              <SelectItem key={p.slug} value={p.slug}>{p.emoji} {p.name}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -379,7 +387,7 @@ export default function Keys() {
         <Dialog open={!!autoStockResult} onOpenChange={() => setAutoStockResult(null)}>
           <DialogContent className="sm:max-w-[560px]">
             <DialogHeader>
-              <DialogTitle>✅ Đã tạo {autoStockResult.keys.length} key {autoStockResult.plan === "basic" ? "🟢 Basic" : "🟣 Pro"}</DialogTitle>
+              <DialogTitle>✅ Đã tạo {autoStockResult.keys.length} key gói {autoStockResult.plan}</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded p-3">
               ⚠️ Sao chép key ngay bây giờ — key đầy đủ chỉ hiển thị một lần duy nhất ở đây.
@@ -464,15 +472,14 @@ export default function Keys() {
 
       {/* ── Inventory cards ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4">
-        {(["basic", "pro"] as const).map((plan) => {
-          const inv = inventory?.[plan];
-          const isBasic = plan === "basic";
+        {(plansData ?? []).map((plan) => {
+          const inv = (inventory as Record<string, { available: number; sold: number; total: number }>)?.[plan.slug];
           return (
-            <Card key={plan} className={`border ${isBasic ? "border-emerald-500/20" : "border-purple-500/20"}`}>
+            <Card key={plan.slug} className="border border-border">
               <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className={`text-sm font-medium flex items-center gap-2 ${isBasic ? "text-emerald-400" : "text-purple-400"}`}>
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
                   <Package className="h-4 w-4" />
-                  Kho {isBasic ? "🟢 Basic" : "🟣 Pro"}
+                  Kho {plan.emoji} {plan.name}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4">
@@ -493,9 +500,9 @@ export default function Keys() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className={`w-full text-xs ${isBasic ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" : "border-purple-500/30 text-purple-400 hover:bg-purple-500/10"}`}
+                  className="w-full text-xs"
                   disabled={autoStockMutation.isPending}
-                  onClick={() => handleAutoStock(plan)}
+                  onClick={() => handleAutoStock(plan.slug)}
                 >
                   {autoStockMutation.isPending ? "Đang tạo..." : "⚡ Bổ sung kho tự động"}
                 </Button>

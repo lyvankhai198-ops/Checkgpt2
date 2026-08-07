@@ -88,7 +88,7 @@ router.get("/admin/plans", adminAuthMiddleware, async (_req, res): Promise<void>
 // ─── Admin: update plan ───────────────────────────────────────────────────────
 
 router.put("/admin/plans/:slug", adminAuthMiddleware, async (req, res): Promise<void> => {
-  const { slug } = req.params;
+  const slug = String(req.params.slug);
   const {
     name, emoji, color, enabled, price, description,
     durationDays, maxTotalUses, dailyLimit, maxConcurrent, bulkEnabled, maxBulkLines,
@@ -174,7 +174,7 @@ router.post("/admin/plans", adminAuthMiddleware, async (req, res): Promise<void>
 // ─── Admin: delete plan ───────────────────────────────────────────────────────
 
 router.delete("/admin/plans/:slug", adminAuthMiddleware, async (req, res): Promise<void> => {
-  const { slug } = req.params;
+  const slug = String(req.params.slug);
   const existing = await db.select({ id: plansTable.id }).from(plansTable).where(eq(plansTable.slug, slug)).limit(1);
   if (!existing[0]) { res.status(404).json({ error: "Plan not found" }); return; }
   await db.delete(plansTable).where(eq(plansTable.slug, slug));

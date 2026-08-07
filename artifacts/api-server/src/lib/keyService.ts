@@ -68,7 +68,7 @@ export interface CreateKeyOptions {
   maxDevices?: number;
   lockToTelegram?: boolean;
   note?: string;
-  plan?: "basic" | "pro";     // plan tag for inventory management
+  plan?: string;              // plan slug for inventory management
   count?: number;             // batch create N keys
 }
 

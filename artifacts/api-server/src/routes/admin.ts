@@ -10,7 +10,7 @@ import { eq, desc, and, ilike, sql, gte } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   adminsTable, licenseKeysTable, usersTable,
-  usageLogsTable, auditLogsTable, settingsTable, ordersTable,
+  usageLogsTable, auditLogsTable, settingsTable, ordersTable, plansTable,
   type InsertSettings,
 } from "@workspace/db";
 import { adminAuthMiddleware, signAdminToken } from "../middlewares/adminAuth.js";
@@ -134,7 +134,7 @@ router.post("/admin/keys", adminAuthMiddleware, async (req, res): Promise<void> 
     maxDevices: maxDevices ? Number(maxDevices) : 1,
     lockToTelegram: Boolean(lockToTelegram),
     note: note || undefined,
-    plan: ["basic", "pro"].includes(plan) ? plan as "basic" | "pro" : undefined,
+    plan: plan ?? undefined,
   };
 
   const created = await createKeys(opts);
@@ -264,7 +264,9 @@ router.get("/admin/keys/export/csv", adminAuthMiddleware, async (_req, res): Pro
 // ── Inventory ────────────────────────────────────────────────────────────────
 
 router.get("/admin/inventory", adminAuthMiddleware, async (_req, res): Promise<void> => {
-  const plans = ["basic", "pro"] as const;
+  // Fetch all plan slugs dynamically from plansTable
+  const planRows = await db.select({ slug: plansTable.slug }).from(plansTable);
+  const plans = planRows.map(p => p.slug);
   const result: Record<string, { total: number; available: number; sold: number; revoked: number }> = {};
 
   for (const plan of plans) {
@@ -289,11 +291,11 @@ router.get("/admin/inventory", adminAuthMiddleware, async (_req, res): Promise<v
     };
   }
 
-  res.json({ basic: result.basic ?? { total: 0, available: 0, sold: 0, revoked: 0 }, pro: result.pro ?? { total: 0, available: 0, sold: 0, revoked: 0 } });
+  res.json(result);
 });
 
 router.post("/admin/users/:telegramId/reset-trial", adminAuthMiddleware, async (req, res): Promise<void> => {
-  const { telegramId } = req.params;
+  const telegramId = String(req.params.telegramId);
   await resetUserTrial(telegramId);
   await logAudit({
     adminId: req.admin!.adminId,
@@ -477,21 +479,31 @@ router.get("/admin/orders", adminAuthMiddleware, async (req, res): Promise<void>
 // ── Auto-stock endpoint ───────────────────────────────────────────────────────
 router.post("/admin/inventory/auto-stock", adminAuthMiddleware, async (req, res): Promise<void> => {
   const { plan } = req.body ?? {};
-  if (!["basic", "pro"].includes(plan)) {
-    res.status(400).json({ error: "plan must be basic or pro" });
+  if (!plan || typeof plan !== "string") {
+    res.status(400).json({ error: "plan slug required" });
     return;
   }
 
+  // Read plan config from DB (single source of truth)
+  const [planRow] = await db.select().from(plansTable).where(eq(plansTable.slug, plan)).limit(1);
+  if (!planRow) {
+    res.status(404).json({ error: `Plan "${plan}" not found` });
+    return;
+  }
+
+  // Stock target: use settings fields for basic/pro, fallback to a sensible default for custom plans
   const [settings] = await db.select().from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
   const target = plan === "basic"
     ? (settings?.basicStockTarget ?? 50)
-    : (settings?.proStockTarget ?? 20);
+    : plan === "pro"
+      ? (settings?.proStockTarget ?? 20)
+      : 20; // default target for custom plans
 
-  // Count current available keys for this plan (inactive = unactivated)
+  // Count current available keys for this plan
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)` })
     .from(licenseKeysTable)
-    .where(and(eq(licenseKeysTable.plan, plan as "basic" | "pro"), eq(licenseKeysTable.status, "inactive")));
+    .where(and(eq(licenseKeysTable.plan, plan), eq(licenseKeysTable.status, "inactive")));
 
   const available = Number(count);
   const needed = Math.max(0, target - available);
@@ -501,13 +513,19 @@ router.post("/admin/inventory/auto-stock", adminAuthMiddleware, async (req, res)
     return;
   }
 
-  const planPresets = {
-    basic: { durationMinutes: undefined, neverExpires: true, maxTotalUses: 20, maxConcurrent: 1, note: "Gói Basic" },
-    pro:   { durationMinutes: undefined, neverExpires: true, maxTotalUses: 30, maxConcurrent: 10, note: "Gói Pro" },
-  } as const;
+  // Build key options from plan's actual DB settings (not hardcoded)
+  const keyOpts = {
+    plan,
+    count: needed,
+    note: `Gói ${planRow.name}`,
+    neverExpires: !planRow.durationDays,
+    durationMinutes: planRow.durationDays ? planRow.durationDays * 24 * 60 : undefined,
+    maxTotalUses: planRow.maxTotalUses ?? undefined,
+    dailyLimit: planRow.dailyLimit ?? undefined,
+    maxConcurrent: planRow.maxConcurrent ?? 1,
+  };
 
-  const preset = planPresets[plan as "basic" | "pro"];
-  const created = await createKeys({ ...preset, plan: plan as "basic" | "pro", count: needed });
+  const created = await createKeys(keyOpts);
 
   await logAudit({
     adminId: req.admin!.adminId,

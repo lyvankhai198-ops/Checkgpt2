@@ -179,7 +179,7 @@ export default function Plans() {
       {
         data: {
           count: createCount,
-          plan: createPlan.slug as "basic" | "pro",
+          plan: createPlan.slug,
           durationMinutes: createPlan.durationDays ? createPlan.durationDays * 24 * 60 : undefined,
           neverExpires: !createPlan.durationDays,
           maxTotalUses: createPlan.maxTotalUses ?? undefined,

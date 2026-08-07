@@ -618,7 +618,7 @@ components:
         note: { type: ["string", "null"] }
         plan:
           type: ["string", "null"]
-          enum: ["basic", "pro", null]
+          description: "Plan slug (any value)"
 
     NewKeyRecord:
       type: object
@@ -658,12 +658,9 @@ components:
 
     InventoryStats:
       type: object
-      required: [basic, pro]
-      properties:
-        basic:
-          $ref: "#/components/schemas/InventoryPlanStats"
-        pro:
-          $ref: "#/components/schemas/InventoryPlanStats"
+      description: "Keys are plan slugs (dynamic)"
+      additionalProperties:
+        $ref: "#/components/schemas/InventoryPlanStats"
 
     # ── Users ─────────────────────────────────────────────────────────────────────
 
@@ -866,7 +863,7 @@ components:
       properties:
         plan:
           type: string
-          enum: [basic, pro]
+          description: "Plan slug (any value)"
 
     AutoStockResult:
       type: object

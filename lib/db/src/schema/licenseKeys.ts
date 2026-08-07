@@ -22,7 +22,7 @@ export const licenseKeysTable = pgTable("license_keys", {
   dailyUsesDate: date("daily_uses_date"),
   currentConcurrent: integer("current_concurrent").notNull().default(0),
   note: text("note"),
-  plan: text("plan", { enum: ["basic", "pro"] }),
+  plan: text("plan"),   // any plan slug — not limited to basic/pro
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

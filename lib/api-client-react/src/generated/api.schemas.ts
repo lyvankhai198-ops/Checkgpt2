@@ -148,16 +148,8 @@ export interface KeyDetail {
   key: LicenseKey;
 }
 
-/**
- * @nullable
- */
-export type CreateKeysInputPlan = typeof CreateKeysInputPlan[keyof typeof CreateKeysInputPlan] | null;
-
-
-export const CreateKeysInputPlan = {
-  basic: 'basic',
-  pro: 'pro',
-} as const;
+/** @nullable — any plan slug */
+export type CreateKeysInputPlan = string | null;
 
 export interface CreateKeysInput {
   count?: number;
@@ -213,10 +205,8 @@ export interface InventoryPlanStats {
   revoked: number;
 }
 
-export interface InventoryStats {
-  basic: InventoryPlanStats;
-  pro: InventoryPlanStats;
-}
+/** Keys are plan slugs — dynamic, not limited to basic/pro */
+export type InventoryStats = Record<string, InventoryPlanStats>;
 
 export interface TelegramUser {
   id: number;
@@ -417,13 +407,8 @@ export interface PricesResponse {
   proStockTarget?: number;
 }
 
-export type AutoStockInputPlan = typeof AutoStockInputPlan[keyof typeof AutoStockInputPlan];
-
-
-export const AutoStockInputPlan = {
-  basic: 'basic',
-  pro: 'pro',
-} as const;
+/** Any plan slug */
+export type AutoStockInputPlan = string;
 
 export interface AutoStockInput {
   plan: AutoStockInputPlan;
