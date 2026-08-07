@@ -10,7 +10,7 @@ import {
   logUsage,
 } from "../lib/keyService.js";
 import { eq } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, plansTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -40,12 +40,17 @@ router.get("/keys/validate", keyLimiter, async (req, res): Promise<void> => {
 
   const result = await validateKey(rawKey, { telegramId, checkConcurrency: false });
   const k = result.key;
+  const planSlug = k?.plan ?? "basic";
+  const [planRow] = await db.select({ bulkEnabled: plansTable.bulkEnabled, maxBulkLines: plansTable.maxBulkLines })
+    .from(plansTable).where(eq(plansTable.slug, planSlug)).limit(1);
   res.json({
     valid: result.valid,
     reason: result.reason,
-    plan: k?.plan ?? "basic",
+    plan: planSlug,
     expiresAt: k?.expiresAt,
     maxConcurrent: k?.maxConcurrent ?? 1,
+    bulkEnabled: planRow?.bulkEnabled ?? false,
+    maxBulkLines: planRow?.maxBulkLines ?? 1,
     // Usage counters — raw values so bot can render "X/Y"
     totalUses: k?.totalUses ?? 0,
     maxTotalUses: k?.maxTotalUses ?? null,
@@ -138,16 +143,21 @@ router.get("/keys/user-current", keyLimiter, async (req, res): Promise<void> => 
 
   const result = await validateKeyById(user.currentKeyId, { telegramId });
   const k = result.key;
+  const planSlug2 = k?.plan ?? "basic";
+  const [planRow2] = await db.select({ bulkEnabled: plansTable.bulkEnabled, maxBulkLines: plansTable.maxBulkLines })
+    .from(plansTable).where(eq(plansTable.slug, planSlug2)).limit(1);
 
   res.json({
     hasKey: result.valid,
     keyId: k?.id,
     keyDisplay: k?.keyDisplay,
-    plan: k?.plan ?? "basic",
+    plan: planSlug2,
     valid: result.valid,
     reason: result.reason,
     expiresAt: k?.expiresAt,
     maxConcurrent: k?.maxConcurrent ?? 1,
+    bulkEnabled: planRow2?.bulkEnabled ?? false,
+    maxBulkLines: planRow2?.maxBulkLines ?? 1,
     totalUses: k?.totalUses ?? 0,
     maxTotalUses: k?.maxTotalUses ?? null,
     dailyUses: k?.dailyUses ?? 0,

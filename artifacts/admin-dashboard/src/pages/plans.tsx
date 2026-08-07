@@ -26,6 +26,7 @@ type Plan = {
   dailyLimit: number | null;
   maxConcurrent: number;
   bulkEnabled: boolean;
+  maxBulkLines: number;
 };
 
 function fmtPrice(v: number) {
@@ -252,11 +253,21 @@ export default function Plans() {
 
               <div className="flex items-center justify-between rounded-lg border border-border px-3 py-3">
                 <div>
-                  <p className="text-sm font-medium">Hỗ trợ check hàng loạt</p>
+                  <p className="text-sm font-medium">Hỗ trợ check hàng loạt (Bulk)</p>
                   <p className="text-xs text-muted-foreground">Cho phép upload file .txt</p>
                 </div>
                 <Switch checked={form.bulkEnabled ?? false} onCheckedChange={(v) => setForm(f => ({ ...f, bulkEnabled: v }))} />
               </div>
+
+              {form.bulkEnabled && (
+                <div className="space-y-1.5">
+                  <Label>Tối đa dòng mỗi lần bulk check</Label>
+                  <Input type="number" min={1} max={500}
+                    value={form.maxBulkLines ?? 10}
+                    onChange={(e) => setForm(f => ({ ...f, maxBulkLines: Number(e.target.value) }))} />
+                  <p className="text-xs text-muted-foreground">Giới hạn số tài khoản tối đa mỗi lần gửi file</p>
+                </div>
+              )}
 
               <div className="flex items-center justify-between rounded-lg border border-border px-3 py-3">
                 <div>

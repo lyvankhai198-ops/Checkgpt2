@@ -35,6 +35,7 @@ const DEFAULT_PLANS = [
     dailyLimit: null,
     maxConcurrent: 1,
     bulkEnabled: false,
+    maxBulkLines: 1,
   },
   {
     slug: "pro",
@@ -55,6 +56,7 @@ const DEFAULT_PLANS = [
     dailyLimit: null,
     maxConcurrent: 10,
     bulkEnabled: true,
+    maxBulkLines: 10,
   },
 ];
 
@@ -87,7 +89,7 @@ router.put("/admin/plans/:slug", adminAuthMiddleware, async (req, res): Promise<
   const { slug } = req.params;
   const {
     name, emoji, enabled, price, description,
-    durationDays, maxTotalUses, dailyLimit, maxConcurrent, bulkEnabled,
+    durationDays, maxTotalUses, dailyLimit, maxConcurrent, bulkEnabled, maxBulkLines,
   } = req.body ?? {};
 
   const existing = await db.select({ id: plansTable.id })
@@ -113,6 +115,7 @@ router.put("/admin/plans/:slug", adminAuthMiddleware, async (req, res): Promise<
       ...(dailyLimit !== undefined && { dailyLimit: dailyLimit === null ? null : Number(dailyLimit) }),
       ...(maxConcurrent !== undefined && { maxConcurrent: Number(maxConcurrent) }),
       ...(bulkEnabled !== undefined && { bulkEnabled: Boolean(bulkEnabled) }),
+      ...(maxBulkLines !== undefined && { maxBulkLines: Number(maxBulkLines) }),
       updatedAt: new Date(),
     })
     .where(eq(plansTable.slug, slug))

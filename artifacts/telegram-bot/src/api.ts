@@ -173,6 +173,8 @@ export interface ValidateResponse {
   plan?: string;          // "basic" | "pro"
   expiresAt?: string;
   maxConcurrent?: number;
+  bulkEnabled?: boolean;
+  maxBulkLines?: number;
   totalUses?: number;
   maxTotalUses?: number | null;
   dailyUses?: number;
@@ -232,6 +234,8 @@ export interface UserCurrentKeyResponse {
   reason?: string;
   expiresAt?: string;
   maxConcurrent?: number;
+  bulkEnabled?: boolean;
+  maxBulkLines?: number;
   totalUses?: number;
   maxTotalUses?: number | null;
   dailyUses?: number;

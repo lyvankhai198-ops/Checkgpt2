@@ -13,6 +13,7 @@ export const plansTable = pgTable("plans", {
   dailyLimit: integer("daily_limit"),             // null = không giới hạn
   maxConcurrent: integer("max_concurrent").notNull().default(1),
   bulkEnabled: boolean("bulk_enabled").notNull().default(false),
+  maxBulkLines: integer("max_bulk_lines").notNull().default(10), // max accounts per bulk submission
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

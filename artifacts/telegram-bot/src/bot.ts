@@ -31,7 +31,7 @@ async function guardRate(ctx: Context): Promise<boolean> {
 async function resolveAccess(ctx: Context): Promise<
   | { allowed: false }
   | { allowed: true; mode: "trial"; remaining: number }
-  | { allowed: true; mode: "key"; key: string; keyId: number; plan: string; maxConcurrent: number }
+  | { allowed: true; mode: "key"; key: string; keyId: number; plan: string; maxConcurrent: number; bulkEnabled: boolean; maxBulkLines: number }
 > {
   const uid = ctx.from!.id;
   const telegramId = String(uid);
@@ -43,7 +43,7 @@ async function resolveAccess(ctx: Context): Promise<
     if (v.valid) {
       const u = await useKey(session.activeKey, telegramId);
       if (u.allowed && u.keyId) {
-        return { allowed: true, mode: "key", key: session.activeKey, keyId: u.keyId, plan: v.plan ?? "basic", maxConcurrent: v.maxConcurrent ?? 1 };
+        return { allowed: true, mode: "key", key: session.activeKey, keyId: u.keyId, plan: v.plan ?? "basic", maxConcurrent: v.maxConcurrent ?? 1, bulkEnabled: v.bulkEnabled ?? false, maxBulkLines: v.maxBulkLines ?? 1 };
       }
       if (u.reason === "concurrency_limit") {
         await ctx.reply("⏳ Bạn đang chạy quá số tác vụ đồng thời. Đợi lệnh hiện tại xong rồi thử lại.");
@@ -93,6 +93,8 @@ async function resolveAccess(ctx: Context): Promise<
         keyId: u.keyId,
         plan: cur.plan ?? "basic",
         maxConcurrent: cur.maxConcurrent ?? 1,
+        bulkEnabled: cur.bulkEnabled ?? false,
+        maxBulkLines: cur.maxBulkLines ?? 1,
       };
     }
     if (u.reason === "concurrency_limit") {
@@ -302,10 +304,9 @@ async function handleCredentialInput(ctx: Context, raw: string) {
   let keyId: number | undefined;
   if (access.mode === "key") keyId = access.keyId;
 
-  // Determine per-submission account limit based on key plan
-  // Trial → 1; Basic → 1; Pro → 10
-  const isPro = access.mode === "key" && access.plan === "pro";
-  const maxAccounts = access.mode === "trial" ? 1 : isPro ? 10 : 1;
+  // Determine per-submission account limit from plan settings (not hardcoded)
+  const canBulk   = access.mode === "key" && access.bulkEnabled;
+  const maxAccounts = access.mode === "trial" ? 1 : canBulk ? access.maxBulkLines : 1;
 
   try {
     if (valid.length === 1) {
@@ -336,22 +337,22 @@ async function handleCredentialInput(ctx: Context, raw: string) {
         Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
       );
       return;
-    } else if (valid.length > maxAccounts) {
-      // Key plan limit exceeded
-      if (maxAccounts === 1) {
-        await ctx.replyWithHTML(
-          `⛔ <b>Gói Basic chỉ cho phép check 1 tài khoản mỗi lần.</b>\n\n` +
-          `Bạn đang gửi <b>${valid.length} tài khoản</b>.\n\n` +
-          "Nâng cấp lên <b>Pro</b> để check tối đa 10 tài khoản mỗi lần.",
-          Markup.inlineKeyboard([[Markup.button.callback("🟣 Nâng cấp Pro", "plan_pro")]])
-        );
-      } else {
-        await ctx.replyWithHTML(
-          `⛔ <b>Gói Pro chỉ cho phép check tối đa 10 tài khoản mỗi lần.</b>\n\n` +
-          `Bạn đang gửi <b>${valid.length} tài khoản</b>.\n\n` +
-          "Vui lòng chia nhỏ danh sách thành từng đợt tối đa 10 tài khoản."
-        );
-      }
+    } else if (!canBulk && valid.length > 1) {
+      // Plan does not have bulk enabled
+      await ctx.replyWithHTML(
+        `⛔ <b>Gói của bạn không hỗ trợ check hàng loạt.</b>\n\n` +
+        `Bạn đang gửi <b>${valid.length} tài khoản</b>.\n\n` +
+        "Nâng cấp lên gói hỗ trợ Bulk để check nhiều tài khoản cùng lúc.",
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+      );
+      return;
+    } else if (canBulk && valid.length > maxAccounts) {
+      // Over plan's maxBulkLines limit
+      await ctx.replyWithHTML(
+        `⛔ <b>Gói của bạn chỉ cho phép check tối đa <b>${maxAccounts} tài khoản</b> mỗi lần.</b>\n\n` +
+        `Bạn đang gửi <b>${valid.length} tài khoản</b>.\n\n` +
+        "Vui lòng chia nhỏ danh sách."
+      );
       return;
     } else {
       // Release single-use slot immediately; bulk manages its own concurrency
@@ -535,13 +536,8 @@ export function createBot(token: string): Telegraf {
     }
 
     setSession(uid, { waitingBulk: true });
-    await ctx.replyWithHTML(
-      "📤 <b>Gửi file .txt chứa danh sách tài khoản.</b>\n\n" +
-      "Mỗi dòng 1 tài khoản, định dạng:\n" +
-      "<code>email|password</code>\n" +
-      "<code>email|password|2fa_secret</code>\n\n" +
-      "Tối đa <b>500</b> dòng mỗi lần."
-    );
+    const _lang = getLang(uid);
+    await ctx.replyWithHTML(l(_lang, "bulkUploadPrompt"));
   });
 
   // Handle file upload for bulk
@@ -580,9 +576,9 @@ export function createBot(token: string): Telegraf {
       return;
     }
 
-    // Per-plan account limit per submission
-    const isPro = access.mode === "key" && access.plan === "pro";
-    const maxAccounts = isPro ? 10 : 1;
+    // Per-plan bulk limit from plan settings (not hardcoded)
+    const canBulkFile   = access.mode === "key" && access.bulkEnabled;
+    const maxAccountsFile = canBulkFile ? access.maxBulkLines : 1;
 
     try {
       const fileLink = await ctx.telegram.getFileLink(doc.file_id);
@@ -595,22 +591,22 @@ export function createBot(token: string): Telegraf {
         return;
       }
 
-      // Basic plan: only first line is allowed
-      if (maxAccounts === 1 && allLines.length > 1) {
+      // Plan does not support bulk
+      if (!canBulkFile && allLines.length > 1) {
         if (keyId !== undefined) await releaseKey(keyId).catch(() => {});
         await ctx.replyWithHTML(
-          `⛔ <b>Gói Basic chỉ cho phép check 1 tài khoản mỗi lần.</b>\n\n` +
+          `⛔ <b>Gói của bạn không hỗ trợ check hàng loạt.</b>\n\n` +
           `File của bạn có <b>${allLines.length} dòng</b>.\n\n` +
-          "Nâng cấp lên <b>Pro</b> để gửi tối đa 10 tài khoản mỗi lần.",
-          Markup.inlineKeyboard([[Markup.button.callback("🟣 Nâng cấp Pro", "plan_pro")]])
+          "Nâng cấp lên gói hỗ trợ Bulk để gửi nhiều tài khoản cùng lúc.",
+          Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
         );
         return;
       }
 
-      // Pro plan: max 10 accounts per submission
-      const lines = allLines.slice(0, maxAccounts);
-      if (allLines.length > maxAccounts) {
-        await ctx.reply(`⚠️ Chỉ xử lý ${maxAccounts} tài khoản đầu tiên. Vui lòng chia nhỏ danh sách.`);
+      // Trim to plan limit
+      const lines = allLines.slice(0, maxAccountsFile);
+      if (allLines.length > maxAccountsFile) {
+        await ctx.reply(`⚠️ Chỉ xử lý ${maxAccountsFile} tài khoản đầu tiên. Vui lòng chia nhỏ danh sách.`);
       }
 
       // Release the single-use slot from resolveAccess immediately
@@ -621,6 +617,7 @@ export function createBot(token: string): Telegraf {
     } catch (e) {
       await ctx.reply(`❌ Không đọc được file: ${(e as Error).message}`);
       if (keyId !== undefined) await releaseKey(keyId).catch(() => {});
+
     }
   });
 
