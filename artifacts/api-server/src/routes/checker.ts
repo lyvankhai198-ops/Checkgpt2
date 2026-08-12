@@ -36,6 +36,42 @@ function makeProxyPicker(proxies: string[] | undefined) {
   };
 }
 
+/** True nếu result là lỗi mạng (proxy chết / bị block) — nên retry không proxy */
+function isNetworkError(r: { status: string; error: string | null }): boolean {
+  return r.status === "error" || r.error === "network_error" || r.error === "login_network_error";
+}
+
+/** Check 1 account/session với proxy, fallback về direct nếu lỗi mạng */
+async function checkWithFallback(
+  mode: "account" | "session",
+  line: string,
+  proxyUrl: string | undefined,
+): Promise<Awaited<ReturnType<typeof checkAccount>>> {
+  async function runCheck(proxy: string | undefined) {
+    if (mode === "account") {
+      const parts = line.split("|").map((p) => p.trim());
+      if (parts.length >= 3) return checkAccount(parts[0], parts[1], parts[2], proxy);
+      if (parts.length === 2) return checkAccount(parts[0], parts[1], "", proxy);
+      return {
+        input: line.slice(0, 50), email: null, status: "error" as const,
+        user: null, plan: null, error: "invalid format (need email|pass or email|pass|2fa)",
+      };
+    }
+    return checkSessionToken(line, proxy);
+  }
+
+  const result = await runCheck(proxyUrl);
+
+  // Nếu proxy gây lỗi mạng → thử lại không proxy
+  if (proxyUrl && isNetworkError(result)) {
+    const direct = await runCheck(undefined);
+    // Trả direct nếu cho kết quả tốt hơn (live/die/deactivated/locked)
+    if (!isNetworkError(direct)) return direct;
+  }
+
+  return result;
+}
+
 router.post("/check", async (req, res): Promise<void> => {
   const parsed = CheckAccountsBody.safeParse(req.body);
   if (!parsed.success) {
@@ -86,26 +122,7 @@ router.post("/check", async (req, res): Promise<void> => {
         running++;
 
         (async () => {
-          let result;
-          if (mode === "account") {
-            const parts = line.split("|").map((p) => p.trim());
-            if (parts.length >= 3) {
-              result = await checkAccount(parts[0], parts[1], parts[2], proxyUrl);
-            } else if (parts.length === 2) {
-              result = await checkAccount(parts[0], parts[1], "", proxyUrl);
-            } else {
-              result = {
-                input: line.slice(0, 50),
-                email: null,
-                status: "error" as const,
-                user: null,
-                plan: null,
-                error: "invalid format (need email|pass or email|pass|2fa)",
-              };
-            }
-          } else {
-            result = await checkSessionToken(line, proxyUrl);
-          }
+          const result = await checkWithFallback(mode, line, proxyUrl);
 
           completed++;
           send({
@@ -157,21 +174,13 @@ router.post("/check-single", async (req, res): Promise<void> => {
   const proxies = (clientProxies && clientProxies.length > 0) ? clientProxies : sysProxies;
   const proxyUrl = proxies.length > 0 ? proxies[0] : undefined;
   const line = lines[0];
-  let result;
+
   if (mode === "account") {
     const parts = line.split("|").map((p) => p.trim());
-    if (parts.length >= 3) {
-      result = await checkAccount(parts[0], parts[1], parts[2], proxyUrl);
-    } else if (parts.length === 2) {
-      result = await checkAccount(parts[0], parts[1], "", proxyUrl);
-    } else {
-      res.status(400).json({ error: "invalid format" });
-      return;
-    }
-  } else {
-    result = await checkSessionToken(line, proxyUrl);
+    if (parts.length < 2) { res.status(400).json({ error: "invalid format" }); return; }
   }
 
+  const result = await checkWithFallback(mode, line, proxyUrl);
   res.json(result);
 });
 
