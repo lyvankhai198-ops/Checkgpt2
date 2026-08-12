@@ -9,7 +9,7 @@ import { eq, and, sql, lt, gte, lte } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   licenseKeysTable, keyActivationsTable, usageLogsTable, auditLogsTable,
-  usersTable, settingsTable,
+  usersTable, settingsTable, plansTable,
   type LicenseKey, type InsertLicenseKey,
 } from "@workspace/db";
 import { logger } from "./logger.js";
@@ -301,6 +301,20 @@ export async function activateKey(
   };
   if (key.lockToTelegram && !key.activatedTelegramId) {
     (updates as Record<string, unknown>).activatedTelegramId = telegramId;
+  }
+
+  // Set expiresAt based on plan durationDays if the key has no expiry yet
+  if (!key.expiresAt && key.plan) {
+    const [planRow] = await db
+      .select({ durationDays: plansTable.durationDays })
+      .from(plansTable)
+      .where(eq(plansTable.slug, key.plan))
+      .limit(1);
+    if (planRow?.durationDays != null) {
+      (updates as Record<string, unknown>).expiresAt = new Date(
+        Date.now() + planRow.durationDays * 24 * 60 * 60 * 1000,
+      );
+    }
   }
 
   const [updatedKey] = await db
