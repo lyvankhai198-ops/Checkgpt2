@@ -402,10 +402,11 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
   const { sepayApiKey } = req.body ?? {};
   if (sepayApiKey && sepayApiKey !== "***set***") updates.sepayApiKey = sepayApiKey;
 
-  const { usdtWallet, usdtRateVnd, adminContact } = req.body ?? {};
+  const { usdtWallet, usdtRateVnd, adminContact, proxyList } = req.body ?? {};
   if (usdtWallet !== undefined) updates.usdtWallet = usdtWallet || null;
   if (usdtRateVnd !== undefined) updates.usdtRateVnd = Number(usdtRateVnd) || 25000;
   if (adminContact !== undefined) updates.adminContact = adminContact || null;
+  if (proxyList !== undefined) updates.proxyList = proxyList || null;
 
   const upsertValues: InsertSettings = { id: 1, updatedAt: new Date() };
   Object.assign(upsertValues, updates);

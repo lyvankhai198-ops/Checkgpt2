@@ -35,6 +35,7 @@ const settingsSchema = z.object({
   usdtRateVnd: z.coerce.number().min(1000).default(25000),
   // Admin contact shown in payment messages
   adminContact: z.string().optional(),
+  proxyList: z.string().optional(),
 });
 
 export default function Settings() {
@@ -85,6 +86,7 @@ export default function Settings() {
         usdtWallet: (data.settings as any).usdtWallet ?? "",
         usdtRateVnd: (data.settings as any).usdtRateVnd ?? 25000,
         adminContact: (data.settings as any).adminContact ?? "",
+        proxyList: (data.settings as any).proxyList ?? "",
       });
     }
   }, [data, form]);
@@ -342,6 +344,32 @@ export default function Settings() {
                     <Input placeholder="@username hoặc https://t.me/username" className="bg-background" {...field} value={field.value ?? ""} />
                   </FormControl>
                   <p className="text-xs text-muted-foreground">Bot sẽ hiển thị thông tin này sau khi khách thanh toán USDT hoặc khi chưa cấu hình bank. VD: @admin123</p>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>🌐 Proxy</CardTitle>
+              <CardDescription>Danh sách proxy dùng khi check tài khoản — luân phiên tự động (round-robin). Để trống = check trực tiếp từ VPS.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FormField control={form.control} name="proxyList" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Danh sách proxy (mỗi proxy 1 dòng)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder={"http://user:pass@host:port\nhttp://user:pass@host2:port\nsocks5://host:port"}
+                      className="bg-background font-mono text-xs min-h-[120px]"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Hỗ trợ HTTP, HTTPS, SOCKS5. Format: <code>http://user:pass@host:port</code>. Proxy do khách gửi (web checker) sẽ được ưu tiên hơn danh sách này.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )} />

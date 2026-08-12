@@ -2,6 +2,26 @@ import { Router } from "express";
 import type { IRouter } from "express";
 import { checkAccount, checkSessionToken } from "../lib/checker.js";
 import { CheckAccountsBody, CheckSingleBody } from "@workspace/api-zod";
+import { db } from "@workspace/db";
+import { settingsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+
+/** Load system proxy list from DB settings (cached 60s) */
+let _proxyCacheAt = 0;
+let _proxyCache: string[] = [];
+async function getSystemProxies(): Promise<string[]> {
+  if (Date.now() - _proxyCacheAt < 60_000) return _proxyCache;
+  try {
+    const [settings] = await db.select({ proxyList: settingsTable.proxyList })
+      .from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
+    const raw = settings?.proxyList ?? "";
+    _proxyCache = raw.split("\n").map(s => s.trim()).filter(Boolean);
+    _proxyCacheAt = Date.now();
+  } catch {
+    // DB not ready — keep existing cache
+  }
+  return _proxyCache;
+}
 
 const router: IRouter = Router();
 
@@ -23,7 +43,7 @@ router.post("/check", async (req, res): Promise<void> => {
     return;
   }
 
-  const { mode, rawText, concurrency = 3, proxies } = parsed.data;
+  const { mode, rawText, concurrency = 3, proxies: clientProxies } = parsed.data;
   const lines = rawText
     .split("\n")
     .map((l) => l.trim())
@@ -33,6 +53,10 @@ router.post("/check", async (req, res): Promise<void> => {
     res.status(400).json({ error: "no input" });
     return;
   }
+
+  // Merge: client-provided proxies take priority; fall back to system proxy list
+  const sysProxies = await getSystemProxies();
+  const proxies = (clientProxies && clientProxies.length > 0) ? clientProxies : sysProxies;
 
   // Set up SSE headers
   res.setHeader("Content-Type", "text/event-stream");
@@ -117,7 +141,7 @@ router.post("/check-single", async (req, res): Promise<void> => {
     return;
   }
 
-  const { mode, rawText, proxies } = parsed.data;
+  const { mode, rawText, proxies: clientProxies } = parsed.data;
   const lines = rawText
     .split("\n")
     .map((l) => l.trim())
@@ -128,7 +152,10 @@ router.post("/check-single", async (req, res): Promise<void> => {
     return;
   }
 
-  const proxyUrl = proxies && proxies.length > 0 ? proxies[0] : undefined;
+  // Use client proxies if provided, else fall back to system proxy list
+  const sysProxies = await getSystemProxies();
+  const proxies = (clientProxies && clientProxies.length > 0) ? clientProxies : sysProxies;
+  const proxyUrl = proxies.length > 0 ? proxies[0] : undefined;
   const line = lines[0];
   let result;
   if (mode === "account") {

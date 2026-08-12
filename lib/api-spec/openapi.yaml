@@ -763,6 +763,10 @@ components:
         bankHolder: { type: ["string", "null"] }
         paymentEnabled: { type: ["number", "null"] }
         sepayApiKey: { type: ["string", "null"] }
+        usdtWallet: { type: ["string", "null"] }
+        usdtRateVnd: { type: ["number", "null"] }
+        adminContact: { type: ["string", "null"] }
+        proxyList: { type: ["string", "null"] }
         updatedAt: { type: ["string", "null"] }
 
     SettingsEnvelope:
@@ -792,6 +796,10 @@ components:
         bankHolder: { type: string }
         paymentEnabled: { type: boolean }
         sepayApiKey: { type: string }
+        usdtWallet: { type: string }
+        usdtRateVnd: { type: number }
+        adminContact: { type: string }
+        proxyList: { type: string }
 
     CreateOrderInput:
       type: object

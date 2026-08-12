@@ -107,3 +107,19 @@ timeoutMs = 20000
 
 [userenv.shared]
 VPS_HOST = "103.180.138.203"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 19891
+externalPort = 80
+
+[[ports]]
+localPort = 22133
+externalPort = 3000
