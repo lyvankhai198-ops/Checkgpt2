@@ -513,13 +513,14 @@ router.post("/admin/inventory/auto-stock", adminAuthMiddleware, async (req, res)
     return;
   }
 
-  // Build key options from plan's actual DB settings (not hardcoded)
+  // Build key options from plan's actual DB settings.
+  // IMPORTANT: neverExpires=true always for warehouse keys — expiry starts
+  // at PAYMENT/ACTIVATION time (not when the key is pre-generated in stock).
   const keyOpts = {
     plan,
     count: needed,
     note: `Gói ${planRow.name}`,
-    neverExpires: !planRow.durationDays,
-    durationMinutes: planRow.durationDays ? planRow.durationDays * 24 * 60 : undefined,
+    neverExpires: true,
     maxTotalUses: planRow.maxTotalUses ?? undefined,
     dailyLimit: planRow.dailyLimit ?? undefined,
     maxConcurrent: planRow.maxConcurrent ?? 1,
