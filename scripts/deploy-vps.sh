@@ -31,6 +31,19 @@ echo "🗄️ DB migrations..."
 export $(grep -v '^#' .env | xargs)
 pnpm --filter @workspace/db run push 2>&1 | tail -3
 
+echo "🔧 Updating Nginx proxy headers..."
+NGINX_CONF="/etc/nginx/sites-available/checkgpt"
+if [ -f "$NGINX_CONF" ]; then
+  if ! grep -q "X-Forwarded-For" "$NGINX_CONF"; then
+    sed -i '/proxy_pass.*3001/a\                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n                proxy_set_header X-Real-IP $remote_addr;\n                proxy_set_header X-Forwarded-Proto $scheme;' "$NGINX_CONF"
+    nginx -t && systemctl reload nginx && echo "Nginx reloaded with proxy headers"
+  else
+    echo "Nginx proxy headers already configured"
+  fi
+else
+  echo "⚠️  Nginx config not found at $NGINX_CONF — skipping"
+fi
+
 echo "🔄 Restarting PM2..."
 pm2 reload api-server --update-env   # graceful reload cho api-server
 pm2 restart telegram-bot --update-env # restart ngay để tránh 409 Conflict (2 bot chạy song song)
