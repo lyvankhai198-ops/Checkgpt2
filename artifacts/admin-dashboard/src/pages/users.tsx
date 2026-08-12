@@ -100,8 +100,12 @@ export default function Users() {
                         <Badge variant="secondary">{user.trialCount}</Badge>
                       </TableCell>
                       <TableCell>
-                        {user.currentKeyId ? (
-                          <Badge variant="outline" className="font-mono text-xs">ID: {user.currentKeyId}</Badge>
+                        {user.currentKeyDisplay ? (
+                          <Badge variant="outline" className="font-mono text-xs max-w-[140px] truncate block" title={user.currentKeyDisplay}>
+                            {user.currentKeyDisplay}
+                          </Badge>
+                        ) : user.currentKeyId ? (
+                          <Badge variant="outline" className="font-mono text-xs">#{user.currentKeyId}</Badge>
                         ) : (
                           <span className="text-muted-foreground text-sm">Không có</span>
                         )}

@@ -219,6 +219,8 @@ export interface TelegramUser {
   /** @nullable */
   currentKeyId?: number | null;
   /** @nullable */
+  currentKeyDisplay?: string | null;
+  /** @nullable */
   lastUsedAt?: string | null;
   createdAt: string;
 }
