@@ -314,7 +314,11 @@ router.get("/admin/users", adminAuthMiddleware, async (req, res): Promise<void> 
   const offset = (page - 1) * limit;
 
   const [users, [{ count }]] = await Promise.all([
-    db.select().from(usersTable).orderBy(desc(usersTable.lastUsedAt)).limit(limit).offset(offset),
+    db.select().from(usersTable).orderBy(
+      // Ưu tiên người active hôm nay hoặc mới tham gia hôm nay
+      sql`CASE WHEN DATE(last_used_at) = CURRENT_DATE OR DATE(created_at) = CURRENT_DATE THEN 0 ELSE 1 END`,
+      desc(sql`COALESCE(last_used_at, created_at)`)
+    ).limit(limit).offset(offset),
     db.select({ count: sql<number>`count(*)` }).from(usersTable),
   ]);
   res.json({ users, total: Number(count), page, limit });

@@ -5,7 +5,7 @@ import {
   getListUsersQueryKey,
   useResetUserTrial,
 } from "@workspace/api-client-react";
-import { format } from "date-fns";
+import { format, isToday } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -78,12 +78,23 @@ export default function Users() {
                     <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">Không có dữ liệu</TableCell>
                   </TableRow>
                 ) : (
-                  data?.users.map((user) => (
-                    <TableRow key={user.id}>
+                  data?.users.map((user) => {
+                    const activeToday = user.lastUsedAt ? isToday(new Date(user.lastUsedAt)) : false;
+                    const joinedToday = isToday(new Date(user.createdAt));
+                    const isHighlighted = activeToday || joinedToday;
+                    return (
+                    <TableRow key={user.id} className={isHighlighted ? "bg-green-500/5 hover:bg-green-500/10" : undefined}>
                       <TableCell className="font-mono text-sm">{user.telegramId}</TableCell>
                       <TableCell>
-                        <div className="font-medium">{user.firstName || "Chưa rõ"}</div>
-                        {user.username && <div className="text-xs text-muted-foreground">@{user.username}</div>}
+                        <div className="flex items-center gap-2">
+                          {isHighlighted && (
+                            <span className="inline-block w-2 h-2 rounded-full bg-green-500 shrink-0" title="Hoạt động hôm nay" />
+                          )}
+                          <div>
+                            <div className="font-medium">{user.firstName || "Chưa rõ"}</div>
+                            {user.username && <div className="text-xs text-muted-foreground">@{user.username}</div>}
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">{user.trialCount}</Badge>
@@ -96,10 +107,22 @@ export default function Users() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {user.lastUsedAt ? format(new Date(user.lastUsedAt), "PPp") : "Chưa từng"}
+                        {user.lastUsedAt ? (
+                          <div>
+                            <span>{format(new Date(user.lastUsedAt), "PPp")}</span>
+                            {activeToday && (
+                              <Badge className="ml-2 bg-green-500/15 text-green-700 dark:text-green-400 border-0 text-xs px-1.5 py-0">Hôm nay</Badge>
+                            )}
+                          </div>
+                        ) : "Chưa từng"}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {format(new Date(user.createdAt), "PP")}
+                        <div>
+                          <span>{format(new Date(user.createdAt), "PP")}</span>
+                          {joinedToday && (
+                            <Badge className="ml-2 bg-blue-500/15 text-blue-700 dark:text-blue-400 border-0 text-xs px-1.5 py-0">Mới</Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Button
@@ -114,7 +137,8 @@ export default function Users() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
