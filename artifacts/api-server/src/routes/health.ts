@@ -12,7 +12,7 @@ router.get("/healthz", (_req, res) => {
 });
 
 /** Public endpoint — bot polls this to check maintenance mode */
-router.get("/api/system/status", async (_req, res) => {
+router.get("/system/status", async (_req, res) => {
   try {
     const [s] = await db.select({ maintenanceMode: settingsTable.maintenanceMode })
       .from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
