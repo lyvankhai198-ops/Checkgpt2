@@ -11,6 +11,7 @@ import { db } from "@workspace/db";
 import {
   adminsTable, licenseKeysTable, usersTable,
   usageLogsTable, auditLogsTable, settingsTable, ordersTable, plansTable,
+  keyActivationsTable,
   type InsertSettings,
 } from "@workspace/db";
 import { adminAuthMiddleware, signAdminToken } from "../middlewares/adminAuth.js";
@@ -422,6 +423,49 @@ router.put("/admin/settings", adminAuthMiddleware, async (req, res): Promise<voi
     ipAddress: req.ip,
   });
 
+  res.json({ ok: true });
+});
+
+// ── Maintenance mode toggle ───────────────────────────────────────────────────
+
+router.post("/admin/maintenance/toggle", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const [settings] = await db.select({ maintenanceMode: settingsTable.maintenanceMode })
+    .from(settingsTable).where(eq(settingsTable.id, 1)).limit(1);
+  const current = settings?.maintenanceMode ?? 0;
+  const next = current === 1 ? 0 : 1;
+
+  await db.insert(settingsTable)
+    .values({ id: 1, maintenanceMode: next, updatedAt: new Date() })
+    .onConflictDoUpdate({ target: settingsTable.id, set: { maintenanceMode: next, updatedAt: new Date() } });
+
+  await logAudit({
+    adminId: req.admin!.adminId,
+    action: next === 1 ? "maintenance_on" : "maintenance_off",
+    targetType: "settings",
+    ipAddress: req.ip,
+  });
+
+  res.json({ ok: true, maintenanceMode: next === 1 });
+});
+
+// ── Purge all system data ─────────────────────────────────────────────────────
+
+router.post("/admin/system/purge", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const { confirm } = req.body ?? {};
+  if (confirm !== "PURGE_ALL_DATA") {
+    res.status(400).json({ error: "Cần xác nhận với chuỗi PURGE_ALL_DATA" });
+    return;
+  }
+
+  // Delete operational data — keep: settings, admins, plans
+  await db.delete(usageLogsTable);
+  await db.delete(auditLogsTable);
+  await db.delete(keyActivationsTable);
+  await db.delete(ordersTable);
+  await db.delete(licenseKeysTable);
+  await db.delete(usersTable);
+
+  logger.warn({ adminId: req.admin!.adminId }, "SYSTEM DATA PURGED by admin");
   res.json({ ok: true });
 });
 

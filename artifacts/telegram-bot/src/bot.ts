@@ -2,7 +2,7 @@ import { Telegraf, Markup, type Context } from "telegraf";
 import {
   checkTrial, useTrial, validateKey, activateKey,
   useKey, useKeyById, releaseKey, checkSingle, checkBulk, getPrices, createOrder, saveOrderQrMessageId,
-  getPlans, fmtPlanPrice, getCurrentUserKey, saveUserLanguage, getUserLanguage,
+  getPlans, fmtPlanPrice, getCurrentUserKey, saveUserLanguage, getUserLanguage, getMaintenanceMode,
   type CheckResult, type ValidateResponse, type PlanConfig, type UserCurrentKeyResponse,
 } from "./api.js";
 import {
@@ -411,6 +411,21 @@ function activateKeyboard(lang: Lang) { return lang === "en" ? ACTIVATE_KB_EN : 
 
 export function createBot(token: string): Telegraf {
   const bot = new Telegraf(token);
+
+  // ── Maintenance mode — blocks all updates when enabled ───────────────────────
+  bot.use(async (ctx, next) => {
+    const maintenance = await getMaintenanceMode();
+    if (maintenance) {
+      if ("message" in ctx.update || "callback_query" in ctx.update) {
+        await ctx.reply(
+          "🔧 Bot đang tạm bảo trì. Vui lòng thử lại sau ít phút.",
+          { parse_mode: undefined }
+        );
+      }
+      return;
+    }
+    return next();
+  });
 
   // ── /start ──────────────────────────────────────────────────────────────────
   bot.start(async (ctx) => {

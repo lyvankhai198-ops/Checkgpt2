@@ -5,6 +5,22 @@
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8080";
 
+// ─── Maintenance mode (cached 30s) ────────────────────────────────────────────
+let _maintCache = { value: false, at: 0 };
+export async function getMaintenanceMode(): Promise<boolean> {
+  if (Date.now() - _maintCache.at < 30_000) return _maintCache.value;
+  try {
+    const res = await fetch(`${BASE}/api/system/status`);
+    if (res.ok) {
+      const data = await res.json() as { maintenanceMode?: boolean };
+      _maintCache = { value: Boolean(data.maintenanceMode), at: Date.now() };
+    }
+  } catch {
+    // API down — keep existing cache (don't block users if API is momentarily unavailable)
+  }
+  return _maintCache.value;
+}
+
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",

@@ -1,11 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useGetSettings,
   getGetSettingsQueryKey,
   useUpdateSettings,
+  customFetch,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +15,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const settingsSchema = z.object({
   telegramBotToken: z.string().optional(),
@@ -40,11 +47,41 @@ const settingsSchema = z.object({
 
 export default function Settings() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { data, isLoading } = useGetSettings({
     query: { queryKey: getGetSettingsQueryKey() },
   });
 
   const updateMutation = useUpdateSettings();
+
+  // Maintenance mode state (derived from settings)
+  const [isMaintenance, setIsMaintenance] = useState(false);
+  const toggleMaintenanceMutation = useMutation({
+    mutationFn: () => customFetch<{ ok: boolean; maintenanceMode: boolean }>(
+      "/api/admin/maintenance/toggle", { method: "POST" }
+    ),
+    onSuccess: (result) => {
+      setIsMaintenance(result.maintenanceMode);
+      toast({
+        title: result.maintenanceMode ? "🔧 Bảo trì BẬT" : "✅ Bảo trì TẮT",
+        description: result.maintenanceMode
+          ? "Bot đã chặn toàn bộ người dùng."
+          : "Bot hoạt động bình thường trở lại.",
+      });
+    },
+    onError: () => toast({ title: "Lỗi", description: "Không thể đổi trạng thái bảo trì.", variant: "destructive" }),
+  });
+
+  const purgeMutation = useMutation({
+    mutationFn: () => customFetch<{ ok: boolean }>(
+      "/api/admin/system/purge", { method: "POST", body: JSON.stringify({ confirm: "PURGE_ALL_DATA" }) }
+    ),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast({ title: "✅ Đã xoá toàn bộ dữ liệu", description: "Hệ thống đã được reset về trạng thái ban đầu." });
+    },
+    onError: () => toast({ title: "Lỗi", description: "Xoá dữ liệu thất bại.", variant: "destructive" }),
+  });
 
   const form = useForm<z.infer<typeof settingsSchema>>({
     resolver: zodResolver(settingsSchema),
@@ -88,6 +125,7 @@ export default function Settings() {
         adminContact: (data.settings as any).adminContact ?? "",
         proxyList: (data.settings as any).proxyList ?? "",
       });
+      setIsMaintenance(((data.settings as any).maintenanceMode ?? 0) === 1);
     }
   }, [data, form]);
 
@@ -402,6 +440,92 @@ export default function Settings() {
           </div>
         </form>
       </Form>
+
+      {/* ── Maintenance mode ─────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>🔧 Chế độ bảo trì</CardTitle>
+          <CardDescription>
+            Khi bật, bot sẽ từ chối toàn bộ yêu cầu của người dùng và hiển thị thông báo bảo trì.
+            Admin dashboard vẫn hoạt động bình thường.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              isMaintenance
+                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+            }`}>
+              {isMaintenance ? "🔧 Đang bảo trì" : "✅ Hoạt động bình thường"}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              {isMaintenance ? "Bot đang chặn tất cả người dùng" : "Bot đang phục vụ người dùng"}
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant={isMaintenance ? "default" : "outline"}
+            disabled={toggleMaintenanceMutation.isPending}
+            onClick={() => toggleMaintenanceMutation.mutate()}
+          >
+            {toggleMaintenanceMutation.isPending
+              ? "Đang xử lý..."
+              : isMaintenance ? "Tắt bảo trì" : "Bật bảo trì"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ── Danger zone ──────────────────────────────────────────────────── */}
+      <Card className="border-destructive/50">
+        <CardHeader>
+          <CardTitle className="text-destructive">⚠️ Vùng nguy hiểm</CardTitle>
+          <CardDescription>
+            Các thao tác không thể hoàn tác. Thực hiện cẩn thận.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start justify-between gap-4 p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+            <div>
+              <p className="font-medium text-sm">Xoá toàn bộ dữ liệu hệ thống</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Xoá vĩnh viễn: người dùng, đơn hàng, key, lịch sử kích hoạt, nhật ký. Giữ lại: cài đặt, tài khoản admin, cấu hình gói.
+              </p>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" size="sm" className="shrink-0">
+                  Xoá tất cả dữ liệu
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Bạn có chắc chắn?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Thao tác này sẽ xoá vĩnh viễn toàn bộ dữ liệu hoạt động:
+                    <br /><br />
+                    <strong>Bị xoá:</strong> Tất cả người dùng bot, đơn hàng, key, lịch sử kích hoạt, usage log, audit log.
+                    <br /><br />
+                    <strong>Giữ lại:</strong> Cài đặt hệ thống, tài khoản admin, cấu hình gói.
+                    <br /><br />
+                    <span className="text-destructive font-medium">Không thể hoàn tác.</span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Huỷ</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => purgeMutation.mutate()}
+                    disabled={purgeMutation.isPending}
+                  >
+                    {purgeMutation.isPending ? "Đang xoá..." : "Xác nhận xoá tất cả"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

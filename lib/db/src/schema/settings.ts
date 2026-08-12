@@ -28,6 +28,7 @@ export const settingsTable = pgTable("settings", {
   usdtRateVnd: integer("usdt_rate_vnd").default(25000), // VND per 1 USDT
   adminContact: text("admin_contact"),                  // e.g. "@myusername" or "https://t.me/myusername"
   proxyList: text("proxy_list"),                        // newline-separated proxy URLs, e.g. http://user:pass@host:port
+  maintenanceMode: integer("maintenance_mode").default(0), // 0 = off, 1 = on
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
