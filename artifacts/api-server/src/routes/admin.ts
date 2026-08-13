@@ -6,7 +6,7 @@
 import { Router, type IRouter } from "express";
 import { rateLimit } from "express-rate-limit";
 import bcrypt from "bcryptjs";
-import { eq, desc, and, ilike, sql, gte } from "drizzle-orm";
+import { eq, desc, and, ilike, sql, gte, inArray } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   adminsTable, licenseKeysTable, usersTable,
@@ -110,7 +110,22 @@ router.get("/admin/keys", adminAuthMiddleware, async (req, res): Promise<void> =
     db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable).where(whereClause),
   ]);
 
-  res.json({ keys, total: Number(count), page, limit });
+  // Batch-fetch activated users for keys that have activatedTelegramId
+  const activatedIds = [...new Set(
+    keys.map(k => k.activatedTelegramId).filter((id): id is string => id !== null && id !== undefined)
+  )];
+  const userMap = new Map<string, typeof usersTable.$inferSelect>();
+  if (activatedIds.length > 0) {
+    const users = await db.select().from(usersTable).where(inArray(usersTable.telegramId, activatedIds));
+    for (const u of users) userMap.set(u.telegramId, u);
+  }
+
+  const keysWithUser = keys.map(k => ({
+    ...k,
+    activatedUser: k.activatedTelegramId ? (userMap.get(k.activatedTelegramId) ?? null) : null,
+  }));
+
+  res.json({ keys: keysWithUser, total: Number(count), page, limit });
 });
 
 type LicenseKey = typeof licenseKeysTable.$inferSelect;
@@ -149,6 +164,39 @@ router.post("/admin/keys", adminAuthMiddleware, async (req, res): Promise<void> 
   });
 
   res.status(201).json({ keys: created });
+});
+
+// ── Key full detail (must be before /:id) ─────────────────────────────────────
+router.get("/admin/keys/:id/detail", adminAuthMiddleware, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const [key] = await db.select().from(licenseKeysTable).where(eq(licenseKeysTable.id, id)).limit(1);
+  if (!key) { res.status(404).json({ error: "Key not found" }); return; }
+
+  const [activatedUserRows, activations, recentLogs, usageStats] = await Promise.all([
+    key.activatedTelegramId
+      ? db.select().from(usersTable).where(eq(usersTable.telegramId, key.activatedTelegramId)).limit(1)
+      : Promise.resolve([] as (typeof usersTable.$inferSelect)[]),
+    db.select().from(keyActivationsTable)
+      .where(eq(keyActivationsTable.keyId, id))
+      .orderBy(desc(keyActivationsTable.activatedAt))
+      .limit(10),
+    db.select().from(usageLogsTable)
+      .where(eq(usageLogsTable.keyId, id))
+      .orderBy(desc(usageLogsTable.createdAt))
+      .limit(20),
+    db.select({ action: usageLogsTable.action, count: sql<number>`count(*)::int` })
+      .from(usageLogsTable)
+      .where(eq(usageLogsTable.keyId, id))
+      .groupBy(usageLogsTable.action),
+  ]);
+
+  res.json({
+    key,
+    activatedUser: activatedUserRows[0] ?? null,
+    activations,
+    recentLogs,
+    usageStats,
+  });
 });
 
 router.get("/admin/keys/:id", adminAuthMiddleware, async (req, res): Promise<void> => {

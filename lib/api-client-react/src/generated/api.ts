@@ -35,6 +35,7 @@ import type {
   HealthStatus,
   InventoryStats,
   KeyDetail,
+  KeyFullDetailEnvelope,
   KeyPage,
   KeyUpdateInput,
   ListAuditLogsParams,
@@ -826,6 +827,83 @@ export const useCreateKeys = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateKeysMutationOptions(options));
     }
+
+export const getGetKeyFullDetailUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/keys/${id}/detail`
+}
+
+/**
+ * @summary Get full key detail — with activated user, activations, usage logs and stats
+ */
+export const getKeyFullDetail = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<KeyFullDetailEnvelope> => {
+
+  return customFetch<KeyFullDetailEnvelope>(getGetKeyFullDetailUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetKeyFullDetailQueryKey = (id: number,) => {
+    return [
+    `/api/admin/keys/${id}/detail`
+    ] as const;
+    }
+
+
+export const getGetKeyFullDetailQueryOptions = <TData = Awaited<ReturnType<typeof getKeyFullDetail>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getKeyFullDetail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetKeyFullDetailQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getKeyFullDetail>>> = ({ signal }) => getKeyFullDetail(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getKeyFullDetail>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetKeyFullDetailQueryResult = NonNullable<Awaited<ReturnType<typeof getKeyFullDetail>>>
+export type GetKeyFullDetailQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get full key detail — with activated user, activations, usage logs and stats
+ */
+
+export function useGetKeyFullDetail<TData = Awaited<ReturnType<typeof getKeyFullDetail>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getKeyFullDetail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetKeyFullDetailQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetKeyUrl = (id: number,) => {
 

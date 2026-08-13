@@ -126,7 +126,7 @@ export const ListKeysResponse = zod.object({
   "keys": zod.array(zod.object({
   "id": zod.number(),
   "keyDisplay": zod.string(),
-  "status": zod.enum(['active', 'revoked', 'locked', 'expired']),
+  "status": zod.enum(['active', 'inactive', 'revoked', 'locked', 'expired']),
   "expiresAt": zod.string().nullish(),
   "maxTotalUses": zod.number().nullish(),
   "totalUses": zod.number(),
@@ -135,11 +135,22 @@ export const ListKeysResponse = zod.object({
   "maxConcurrent": zod.number(),
   "concurrentSlots": zod.number(),
   "allowedTelegramId": zod.string().nullish(),
+  "activatedTelegramId": zod.string().nullish(),
   "lockToTelegram": zod.boolean().optional(),
   "note": zod.string().nullish(),
-  "plan": zod.union([zod.literal('basic'),zod.literal('pro'),zod.literal(null)]).nullish(),
+  "plan": zod.string().nullish().describe('Plan slug (any value)'),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "activatedUser": zod.object({
+  "id": zod.number().optional(),
+  "telegramId": zod.string().optional(),
+  "username": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "trialCount": zod.number().optional(),
+  "currentKeyId": zod.number().nullish(),
+  "lastUsedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+}).nullish()
 })),
   "total": zod.number(),
   "page": zod.number(),
@@ -173,6 +184,77 @@ export const CreateKeysResponse = zod.object({
 
 
 /**
+ * @summary Get full key detail — with activated user, activations, usage logs and stats
+ */
+export const GetKeyFullDetailParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetKeyFullDetailResponse = zod.object({
+  "key": zod.object({
+  "id": zod.number(),
+  "keyDisplay": zod.string(),
+  "status": zod.enum(['active', 'inactive', 'revoked', 'locked', 'expired']),
+  "expiresAt": zod.string().nullish(),
+  "maxTotalUses": zod.number().nullish(),
+  "totalUses": zod.number(),
+  "dailyLimit": zod.number().nullish(),
+  "dailyUses": zod.number(),
+  "maxConcurrent": zod.number(),
+  "concurrentSlots": zod.number(),
+  "allowedTelegramId": zod.string().nullish(),
+  "activatedTelegramId": zod.string().nullish(),
+  "lockToTelegram": zod.boolean().optional(),
+  "note": zod.string().nullish(),
+  "plan": zod.string().nullish().describe('Plan slug (any value)'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "activatedUser": zod.object({
+  "id": zod.number().optional(),
+  "telegramId": zod.string().optional(),
+  "username": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "trialCount": zod.number().optional(),
+  "currentKeyId": zod.number().nullish(),
+  "lastUsedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+}).nullish()
+}),
+  "activatedUser": zod.object({
+  "id": zod.number().optional(),
+  "telegramId": zod.string().optional(),
+  "username": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "trialCount": zod.number().optional(),
+  "currentKeyId": zod.number().nullish(),
+  "lastUsedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+}).nullish(),
+  "activations": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "keyId": zod.number().optional(),
+  "telegramId": zod.string().optional(),
+  "activatedAt": zod.string().optional(),
+  "deviceInfo": zod.string().nullish(),
+  "ipAddress": zod.string().nullish()
+})),
+  "recentLogs": zod.array(zod.object({
+  "id": zod.number(),
+  "keyId": zod.number().nullish(),
+  "telegramId": zod.string().nullish(),
+  "action": zod.string(),
+  "ipAddress": zod.string().nullish(),
+  "errorMessage": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "usageStats": zod.array(zod.object({
+  "action": zod.string(),
+  "count": zod.number()
+}))
+})
+
+
+/**
  * @summary Get a single key
  */
 export const GetKeyParams = zod.object({
@@ -183,7 +265,7 @@ export const GetKeyResponse = zod.object({
   "key": zod.object({
   "id": zod.number(),
   "keyDisplay": zod.string(),
-  "status": zod.enum(['active', 'revoked', 'locked', 'expired']),
+  "status": zod.enum(['active', 'inactive', 'revoked', 'locked', 'expired']),
   "expiresAt": zod.string().nullish(),
   "maxTotalUses": zod.number().nullish(),
   "totalUses": zod.number(),
@@ -192,11 +274,22 @@ export const GetKeyResponse = zod.object({
   "maxConcurrent": zod.number(),
   "concurrentSlots": zod.number(),
   "allowedTelegramId": zod.string().nullish(),
+  "activatedTelegramId": zod.string().nullish(),
   "lockToTelegram": zod.boolean().optional(),
   "note": zod.string().nullish(),
-  "plan": zod.union([zod.literal('basic'),zod.literal('pro'),zod.literal(null)]).nullish(),
+  "plan": zod.string().nullish().describe('Plan slug (any value)'),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "activatedUser": zod.object({
+  "id": zod.number().optional(),
+  "telegramId": zod.string().optional(),
+  "username": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "trialCount": zod.number().optional(),
+  "currentKeyId": zod.number().nullish(),
+  "lastUsedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+}).nullish()
 })
 })
 
@@ -219,7 +312,7 @@ export const UpdateKeyResponse = zod.object({
   "key": zod.object({
   "id": zod.number(),
   "keyDisplay": zod.string(),
-  "status": zod.enum(['active', 'revoked', 'locked', 'expired']),
+  "status": zod.enum(['active', 'inactive', 'revoked', 'locked', 'expired']),
   "expiresAt": zod.string().nullish(),
   "maxTotalUses": zod.number().nullish(),
   "totalUses": zod.number(),
@@ -228,11 +321,22 @@ export const UpdateKeyResponse = zod.object({
   "maxConcurrent": zod.number(),
   "concurrentSlots": zod.number(),
   "allowedTelegramId": zod.string().nullish(),
+  "activatedTelegramId": zod.string().nullish(),
   "lockToTelegram": zod.boolean().optional(),
   "note": zod.string().nullish(),
-  "plan": zod.union([zod.literal('basic'),zod.literal('pro'),zod.literal(null)]).nullish(),
+  "plan": zod.string().nullish().describe('Plan slug (any value)'),
   "createdAt": zod.string(),
-  "updatedAt": zod.string()
+  "updatedAt": zod.string(),
+  "activatedUser": zod.object({
+  "id": zod.number().optional(),
+  "telegramId": zod.string().optional(),
+  "username": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "trialCount": zod.number().optional(),
+  "currentKeyId": zod.number().nullish(),
+  "lastUsedAt": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+}).nullish()
 })
 })
 

@@ -11,6 +11,7 @@ export type LicenseKeyStatus = typeof LicenseKeyStatus[keyof typeof LicenseKeySt
 
 export const LicenseKeyStatus = {
   active: 'active',
+  inactive: 'inactive',
   revoked: 'revoked',
   locked: 'locked',
   expired: 'expired',

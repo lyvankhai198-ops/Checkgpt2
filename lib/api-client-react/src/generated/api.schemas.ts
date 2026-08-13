@@ -96,25 +96,46 @@ export interface DashboardStats {
   usageChart: ChartPoint[];
 }
 
+export interface ActivatedUserInfo {
+  id?: number;
+  telegramId?: string;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  firstName?: string | null;
+  trialCount?: number;
+  /** @nullable */
+  currentKeyId?: number | null;
+  /** @nullable */
+  lastUsedAt?: string | null;
+  createdAt?: string;
+}
+
+export interface KeyActivationRecord {
+  id?: number;
+  keyId?: number;
+  telegramId?: string;
+  activatedAt?: string;
+  /** @nullable */
+  deviceInfo?: string | null;
+  /** @nullable */
+  ipAddress?: string | null;
+}
+
+export interface UsageActionStat {
+  action: string;
+  count: number;
+}
+
 export type LicenseKeyStatus = typeof LicenseKeyStatus[keyof typeof LicenseKeyStatus];
 
 
 export const LicenseKeyStatus = {
   active: 'active',
+  inactive: 'inactive',
   revoked: 'revoked',
   locked: 'locked',
   expired: 'expired',
-} as const;
-
-/**
- * @nullable
- */
-export type LicenseKeyPlan = typeof LicenseKeyPlan[keyof typeof LicenseKeyPlan] | null;
-
-
-export const LicenseKeyPlan = {
-  basic: 'basic',
-  pro: 'pro',
 } as const;
 
 export interface LicenseKey {
@@ -133,13 +154,41 @@ export interface LicenseKey {
   concurrentSlots: number;
   /** @nullable */
   allowedTelegramId?: string | null;
+  /** @nullable */
+  activatedTelegramId?: string | null;
   lockToTelegram?: boolean;
   /** @nullable */
   note?: string | null;
-  /** @nullable */
-  plan?: LicenseKeyPlan;
+  /**
+     * Plan slug (any value)
+     * @nullable
+     */
+  plan?: string | null;
   createdAt: string;
   updatedAt: string;
+  activatedUser?: ActivatedUserInfo | null;
+}
+
+export interface UsageLog {
+  id: number;
+  /** @nullable */
+  keyId?: number | null;
+  /** @nullable */
+  telegramId?: string | null;
+  action: string;
+  /** @nullable */
+  ipAddress?: string | null;
+  /** @nullable */
+  errorMessage?: string | null;
+  createdAt: string;
+}
+
+export interface KeyFullDetailEnvelope {
+  key: LicenseKey;
+  activatedUser?: ActivatedUserInfo | null;
+  activations: KeyActivationRecord[];
+  recentLogs: UsageLog[];
+  usageStats: UsageActionStat[];
 }
 
 export interface KeyPage {
@@ -237,20 +286,6 @@ export interface UserPage {
   total: number;
   page: number;
   limit: number;
-}
-
-export interface UsageLog {
-  id: number;
-  /** @nullable */
-  keyId?: number | null;
-  /** @nullable */
-  telegramId?: string | null;
-  action: string;
-  /** @nullable */
-  ipAddress?: string | null;
-  /** @nullable */
-  errorMessage?: string | null;
-  createdAt: string;
 }
 
 export interface UsageLogPage {
@@ -447,6 +482,14 @@ export interface AutoStockResult {
   message?: string;
   keys?: AutoStockResultKeysItem[];
 }
+
+export type AdminPlansResponseItem = {
+  slug: string;
+  name: string;
+  emoji?: string;
+};
+
+export type AdminPlansResponse = AdminPlansResponseItem[];
 
 export type ListKeysParams = {
 page?: number;

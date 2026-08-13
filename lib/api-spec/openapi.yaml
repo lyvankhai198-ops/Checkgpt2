@@ -187,6 +187,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/BatchKeys"
 
+  /admin/keys/{id}/detail:
+    get:
+      operationId: getKeyFullDetail
+      tags: [admin]
+      summary: Get full key detail — with activated user, activations, usage logs and stats
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Full key detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeyFullDetailEnvelope"
+        "404":
+          description: Not found
+
   /admin/keys/{id}:
     get:
       operationId: getKey
@@ -565,6 +585,35 @@ components:
 
     # ── License keys ──────────────────────────────────────────────────────────────
 
+    ActivatedUserInfo:
+      type: object
+      properties:
+        id: { type: number }
+        telegramId: { type: string }
+        username: { type: ["string", "null"] }
+        firstName: { type: ["string", "null"] }
+        trialCount: { type: number }
+        currentKeyId: { type: ["number", "null"] }
+        lastUsedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    KeyActivationRecord:
+      type: object
+      properties:
+        id: { type: number }
+        keyId: { type: number }
+        telegramId: { type: string }
+        activatedAt: { type: string }
+        deviceInfo: { type: ["string", "null"] }
+        ipAddress: { type: ["string", "null"] }
+
+    UsageActionStat:
+      type: object
+      required: [action, count]
+      properties:
+        action: { type: string }
+        count: { type: number }
+
     LicenseKey:
       type: object
       required: [id, keyDisplay, status, totalUses, dailyUses, maxConcurrent, concurrentSlots, createdAt, updatedAt]
@@ -573,7 +622,7 @@ components:
         keyDisplay: { type: string }
         status:
           type: string
-          enum: [active, revoked, locked, expired]
+          enum: [active, inactive, revoked, locked, expired]
         expiresAt: { type: ["string", "null"] }
         maxTotalUses: { type: ["number", "null"] }
         totalUses: { type: number }
@@ -582,13 +631,41 @@ components:
         maxConcurrent: { type: number }
         concurrentSlots: { type: number }
         allowedTelegramId: { type: ["string", "null"] }
+        activatedTelegramId: { type: ["string", "null"] }
         lockToTelegram: { type: boolean }
         note: { type: ["string", "null"] }
         plan:
           type: ["string", "null"]
-          enum: ["basic", "pro", null]
+          description: "Plan slug (any value)"
         createdAt: { type: string }
         updatedAt: { type: string }
+        activatedUser:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ActivatedUserInfo"
+
+    KeyFullDetailEnvelope:
+      type: object
+      required: [key, activations, recentLogs, usageStats]
+      properties:
+        key:
+          $ref: "#/components/schemas/LicenseKey"
+        activatedUser:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ActivatedUserInfo"
+        activations:
+          type: array
+          items:
+            $ref: "#/components/schemas/KeyActivationRecord"
+        recentLogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageLog"
+        usageStats:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageActionStat"
 
     KeyPage:
       type: object
@@ -896,3 +973,13 @@ components:
               id: { type: number }
               key: { type: string }
               display: { type: string }
+
+    AdminPlansResponse:
+      type: array
+      items:
+        type: object
+        required: [slug, name]
+        properties:
+          slug: { type: string }
+          name: { type: string }
+          emoji: { type: string }
