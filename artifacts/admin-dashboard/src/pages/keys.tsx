@@ -310,7 +310,8 @@ function KeyDetailModal({ keyId, onClose, onActionDone }: { keyId: number; onClo
               </h3>
               {recentLogs && recentLogs.length > 0 ? (
                 <div className="rounded-lg border border-border overflow-hidden">
-                  <Table>
+                  <div className="max-h-52 overflow-y-auto">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-xs">Thời gian</TableHead>
@@ -337,7 +338,8 @@ function KeyDetailModal({ keyId, onClose, onActionDone }: { keyId: number; onClo
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </div>
                 </div>
               ) : (
                 <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground text-center">
