@@ -36,7 +36,7 @@ jobs:
 
             echo "🗄️ DB migrations..."
             export $(grep -v '^#' .env | xargs)
-            pnpm --filter @workspace/db run push 2>&1 | tail -3
+            pnpm --filter @workspace/db run push-force 2>&1 | tail -3
 
             echo "🔧 Updating Nginx proxy headers..."
             NGINX_CONF="/etc/nginx/sites-available/checkgpt"
