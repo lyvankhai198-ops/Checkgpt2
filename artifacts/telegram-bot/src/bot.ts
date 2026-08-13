@@ -54,19 +54,30 @@ async function resolveAccess(ctx: Context): Promise<
         return { allowed: false };
       }
       if (u.reason === "max_uses_reached") {
-        await ctx.reply("🚫 Key đã dùng hết tổng lượt sử dụng.");
+        // Keep session so /status still shows key info — user can activate a new key directly
+        await ctx.replyWithHTML(
+          "🚫 <b>Key của bạn đã hết tổng lượt dùng.</b>\n\nGia hạn hoặc gửi key mới để tiếp tục.",
+          Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]])
+        );
         return { allowed: false };
       }
-      setSession(uid, { activeKey: undefined, activeKeyId: undefined });
+      // Other unexpected useKey failure — keep session, don't show extra message
     } else {
-      setSession(uid, { activeKey: undefined, activeKeyId: undefined });
-      const reasons: Record<string, string> = {
-        expired: "⌛ Key của bạn đã hết hạn.",
-        locked: "🔒 Key của bạn đang bị khóa. Liên hệ admin.",
+      // Key no longer valid — keep in session so /status still displays info
+      // Only clear if revoked (admin action, key cannot come back)
+      if (v.reason === "revoked") setSession(uid, { activeKey: undefined, activeKeyId: undefined });
+      const messages: Record<string, string> = {
+        expired: "⌛ <b>Key của bạn đã hết hạn.</b>",
+        locked: "🔒 <b>Key đang bị khóa.</b> Liên hệ admin.",
         revoked: "❌ Key đã bị thu hồi.",
         brute_force_locked: "⛔ Quá nhiều lần thử sai. Thử lại sau 15 phút.",
       };
-      await ctx.reply((reasons[v.reason ?? ""] ?? "❌ Key không hợp lệ.") + "\n\nNhập /activate <key> để kích hoạt key mới.");
+      const msg = messages[v.reason ?? ""] ?? "❌ Key không hợp lệ.";
+      const showRenewal = ["expired", "total_exceeded"].includes(v.reason ?? "");
+      await ctx.replyWithHTML(
+        msg + "\n\nGửi key mới hoặc dùng /activate để kích hoạt.",
+        showRenewal ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined
+      );
       return { allowed: false };
     }
   }
@@ -106,17 +117,26 @@ async function resolveAccess(ctx: Context): Promise<
       return { allowed: false };
     }
     if (u.reason === "max_uses_reached") {
-      await ctx.reply("🚫 Key đã dùng hết tổng lượt sử dụng.");
+      // Keep session so /status still shows key info
+      await ctx.replyWithHTML(
+        "🚫 <b>Key của bạn đã hết tổng lượt dùng.</b>\n\nGia hạn hoặc gửi key mới để tiếp tục.",
+        Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]])
+      );
       return { allowed: false };
     }
-    // Key became invalid (expired, revoked, locked)
-    setSession(uid, { activeKeyId: undefined, activeKeyDisplay: undefined });
-    const reasons: Record<string, string> = {
-      expired: "⌛ Key của bạn đã hết hạn.",
-      locked: "🔒 Key của bạn đang bị khóa. Liên hệ admin.",
+    // Key became invalid (expired, revoked, locked) — keep session except for revoked
+    if (u.reason === "revoked") setSession(uid, { activeKeyId: undefined, activeKeyDisplay: undefined });
+    const messages2: Record<string, string> = {
+      expired: "⌛ <b>Key của bạn đã hết hạn.</b>",
+      locked: "🔒 <b>Key đang bị khóa.</b> Liên hệ admin.",
       revoked: "❌ Key đã bị thu hồi.",
     };
-    await ctx.reply((reasons[u.reason ?? ""] ?? "❌ Key không còn hợp lệ.") + "\n\nNhập /activate <key> để kích hoạt key mới.");
+    const msg2 = messages2[u.reason ?? ""] ?? "❌ Key không còn hợp lệ.";
+    const showRenewal2 = ["expired"].includes(u.reason ?? "");
+    await ctx.replyWithHTML(
+      msg2 + "\n\nGửi key mới hoặc dùng /activate để kích hoạt.",
+      showRenewal2 ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined
+    );
     return { allowed: false };
   }
 
@@ -826,7 +846,7 @@ export function createBot(token: string): Telegraf {
         ? ((v.maxTotalUses - (v.totalUses ?? 0)) / v.maxTotalUses) < 0.20
         : false;
       const needsRenewal = exhausted || nearExpiry || lowUses;
-      if (!v.valid) setSession(uid, { activeKey: undefined, activeKeyId: undefined });
+      // Don't clear session — user can still check /status and activate a new key directly
       await ctx.replyWithHTML(lines.join("\n"),
         needsRenewal ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined);
       return;
@@ -862,7 +882,7 @@ export function createBot(token: string): Telegraf {
         const displayKey = session.activeKeyDisplay ?? current.keyDisplay ?? "***";
         const lines = buildStatusLines(displayKey, v);
         const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
-        if (!v.valid) setSession(uid, { activeKeyId: undefined, activeKeyDisplay: undefined });
+        // Don't clear session — keep key info visible until user activates a new one
         await ctx.replyWithHTML(lines.join("\n"),
           exhausted ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined);
         return;

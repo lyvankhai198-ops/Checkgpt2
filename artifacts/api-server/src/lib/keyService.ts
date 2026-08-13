@@ -292,6 +292,8 @@ export async function activateKey(
 ): Promise<ActivateResult> {
   // ── Check if user already has an active key ─────────────────────────────────
   // Skip this check when forceSwitch=true (user explicitly chose to switch).
+  // Also skip when the current key is no longer usable (expired, exhausted, revoked, locked)
+  // so the user can activate a new key directly without any confirmation prompt.
   if (!opts.forceSwitch && telegramId) {
     const [existingUser] = await db
       .select({ currentKeyId: usersTable.currentKeyId })
@@ -299,14 +301,12 @@ export async function activateKey(
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
     if (existingUser?.currentKeyId) {
-      const [currentKey] = await db
-        .select()
-        .from(licenseKeysTable)
-        .where(eq(licenseKeysTable.id, existingUser.currentKeyId))
-        .limit(1);
-      if (currentKey && currentKey.status === "active") {
-        return { success: false, reason: "already_active", currentKey };
+      const currentValidation = await validateKeyById(existingUser.currentKeyId, { telegramId });
+      if (currentValidation.valid) {
+        // Current key is still fully usable — ask user to confirm switch
+        return { success: false, reason: "already_active", currentKey: currentValidation.key };
       }
+      // Current key is expired / out of uses / revoked / locked → allow free activation
     }
   }
 
