@@ -81,13 +81,12 @@ export interface CreatedKey {
 export async function createKeys(opts: CreateKeyOptions = {}): Promise<CreatedKey[]> {
   const count = Math.max(1, opts.count ?? 1);
 
+  // Only set expiresAt at creation when admin provides a FIXED date.
+  // When durationMinutes is given, expiry is deferred to activation time so
+  // the clock starts when the customer activates — not when the key was created.
   let expiresAt: Date | undefined;
-  if (!opts.neverExpires) {
-    if (opts.expiresAt) {
-      expiresAt = opts.expiresAt;
-    } else if (opts.durationMinutes) {
-      expiresAt = new Date(Date.now() + opts.durationMinutes * 60 * 1000);
-    }
+  if (!opts.neverExpires && opts.expiresAt) {
+    expiresAt = opts.expiresAt;
   }
 
   const results: CreatedKey[] = [];
@@ -105,6 +104,8 @@ export async function createKeys(opts: CreateKeyOptions = {}): Promise<CreatedKe
         keyDisplay,
         status: "inactive",
         expiresAt: expiresAt ?? null,
+        // Store durationMinutes so activateKey() can compute expiry at activation time
+        durationMinutes: (!opts.neverExpires && opts.durationMinutes) ? opts.durationMinutes : null,
         maxTotalUses: opts.maxTotalUses ?? null,
         dailyLimit: opts.dailyLimit ?? null,
         maxConcurrent: opts.maxConcurrent ?? 1,
@@ -280,13 +281,35 @@ export interface ActivateResult {
   success: boolean;
   reason?: string;
   key?: LicenseKey;
+  /** Populated when reason === "already_active" */
+  currentKey?: LicenseKey;
 }
 
 export async function activateKey(
   rawKey: string,
   telegramId: string,
-  opts: { deviceInfo?: string; ipAddress?: string; userId?: number } = {},
+  opts: { deviceInfo?: string; ipAddress?: string; userId?: number; forceSwitch?: boolean } = {},
 ): Promise<ActivateResult> {
+  // ── Check if user already has an active key ─────────────────────────────────
+  // Skip this check when forceSwitch=true (user explicitly chose to switch).
+  if (!opts.forceSwitch && telegramId) {
+    const [existingUser] = await db
+      .select({ currentKeyId: usersTable.currentKeyId })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    if (existingUser?.currentKeyId) {
+      const [currentKey] = await db
+        .select()
+        .from(licenseKeysTable)
+        .where(eq(licenseKeysTable.id, existingUser.currentKeyId))
+        .limit(1);
+      if (currentKey && currentKey.status === "active") {
+        return { success: false, reason: "already_active", currentKey };
+      }
+    }
+  }
+
   const result = await validateKey(rawKey, { telegramId });
   if (!result.valid || !result.key) {
     return { success: false, reason: result.reason };
@@ -294,26 +317,33 @@ export async function activateKey(
 
   const key = result.key;
 
-  // Lock to telegram_id on first activation
+  // Always record who activated the key
   const updates: Partial<LicenseKey> = {
     status: "active",
+    activatedTelegramId: telegramId,
     updatedAt: new Date(),
   };
-  if (key.lockToTelegram && !key.activatedTelegramId) {
-    (updates as Record<string, unknown>).activatedTelegramId = telegramId;
-  }
 
-  // Set expiresAt based on plan durationDays if the key has no expiry yet
-  if (!key.expiresAt && key.plan) {
-    const [planRow] = await db
-      .select({ durationDays: plansTable.durationDays })
-      .from(plansTable)
-      .where(eq(plansTable.slug, key.plan))
-      .limit(1);
-    if (planRow?.durationDays != null) {
+  // ── Set expiresAt at activation time (clock starts when customer activates) ──
+  // Priority: durationMinutes column → plan.durationDays → existing fixed expiresAt
+  if (!key.expiresAt) {
+    if (key.durationMinutes) {
+      // Admin set a duration — apply it from NOW
       (updates as Record<string, unknown>).expiresAt = new Date(
-        Date.now() + planRow.durationDays * 24 * 60 * 60 * 1000,
+        Date.now() + key.durationMinutes * 60 * 1000,
       );
+    } else if (key.plan) {
+      // Plan-based duration — apply from NOW
+      const [planRow] = await db
+        .select({ durationDays: plansTable.durationDays })
+        .from(plansTable)
+        .where(eq(plansTable.slug, key.plan))
+        .limit(1);
+      if (planRow?.durationDays != null) {
+        (updates as Record<string, unknown>).expiresAt = new Date(
+          Date.now() + planRow.durationDays * 24 * 60 * 60 * 1000,
+        );
+      }
     }
   }
 

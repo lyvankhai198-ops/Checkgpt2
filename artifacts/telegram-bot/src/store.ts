@@ -16,6 +16,8 @@ export interface UserSession {
   lang?: "vi" | "en";
   /** Whether user is waiting to send a .txt file for bulk check */
   waitingBulk?: boolean;
+  /** Key the user wants to activate but already has an active key — pending "Đổi key" confirmation */
+  pendingKey?: string;
   /** Concurrency slots currently occupied */
   concurrentSlots: number;
 }

@@ -1,6 +1,6 @@
 import { Telegraf, Markup, type Context } from "telegraf";
 import {
-  checkTrial, useTrial, validateKey, activateKey,
+  checkTrial, useTrial, validateKey, activateKey, switchKey,
   useKey, useKeyById, releaseKey, checkSingle, checkBulk, getPrices, createOrder, saveOrderQrMessageId,
   getPlans, fmtPlanPrice, getCurrentUserKey, saveUserLanguage, getUserLanguage, getMaintenanceMode,
   type CheckResult, type ValidateResponse, type PlanConfig, type UserCurrentKeyResponse,
@@ -660,7 +660,7 @@ export function createBot(token: string): Telegraf {
     await ctx.telegram.deleteMessage(ctx.chat.id, thinkMsg.message_id).catch(() => {});
 
     if (result.success) {
-      setSession(uid, { activeKey: key });
+      setSession(uid, { activeKey: key, pendingKey: undefined });
       const lines = [
         "✅ <b>Key kích hoạt thành công!</b>",
         "",
@@ -679,6 +679,19 @@ export function createBot(token: string): Telegraf {
       ];
       // Switch to full menu after successful activation
       await ctx.replyWithHTML(lines.join("\n"), mainKeyboard(getLang(uid)));
+    } else if (result.reason === "already_active") {
+      // User has an existing active key — ask if they want to switch
+      setSession(uid, { pendingKey: key });
+      await ctx.replyWithHTML(
+        "🔑 <b>Bạn đang có key đang hoạt động!</b>\n\n" +
+        "Key hiện tại của bạn vẫn còn hiệu lực.\n" +
+        "Nếu muốn đổi sang key mới, nhấn <b>Đổi key</b>.\n\n" +
+        "⚠️ Key cũ sẽ ngừng được sử dụng sau khi đổi.",
+        Markup.inlineKeyboard([
+          [Markup.button.callback("🔄 Đổi sang key mới", "switch_key")],
+          [Markup.button.callback("❌ Giữ key hiện tại", "cancel_switch")],
+        ])
+      );
     } else {
       const reasons: Record<string, string> = {
         not_found: "❌ Key không tồn tại hoặc đã nhập sai.",
@@ -771,6 +784,29 @@ export function createBot(token: string): Telegraf {
       );
     }
 
+    // ── Renewal warnings ──────────────────────────────────────────────────────
+    const warnings: string[] = [];
+
+    // Near expiry: ≤ 3 days left
+    if (v.expiresAt) {
+      const daysLeft = Math.ceil((new Date(v.expiresAt).getTime() - Date.now()) / 86_400_000);
+      if (daysLeft <= 3 && daysLeft > 0) {
+        warnings.push(`⚠️ Key sắp hết hạn trong <b>${daysLeft} ngày</b>! Gia hạn ngay để không bị gián đoạn.`);
+      }
+    }
+
+    // Low uses: < 20% total uses left
+    if (totalMax != null && totalMax > 0) {
+      const pct = (totalMax - totalUsed) / totalMax;
+      if (pct < 0.20 && totalUsed < totalMax) {
+        warnings.push(`⚠️ Chỉ còn <b>${totalMax - totalUsed} lượt</b> — dưới 20%. Gia hạn để tiếp tục dùng.`);
+      }
+    }
+
+    if (warnings.length > 0) {
+      lines.push("", ...warnings);
+    }
+
     return lines;
   }
 
@@ -785,9 +821,14 @@ export function createBot(token: string): Telegraf {
       const v = await validateKey(session.activeKey, telegramId);
       const lines = buildStatusLines(session.activeKey, v);
       const exhausted = v.totalUsesLeft === 0 || (!v.valid && ["expired","total_exceeded","revoked"].includes(v.reason ?? ""));
+      const nearExpiry = v.expiresAt ? Math.ceil((new Date(v.expiresAt).getTime() - Date.now()) / 86_400_000) <= 3 : false;
+      const lowUses = (v.maxTotalUses != null && v.maxTotalUses > 0)
+        ? ((v.maxTotalUses - (v.totalUses ?? 0)) / v.maxTotalUses) < 0.20
+        : false;
+      const needsRenewal = exhausted || nearExpiry || lowUses;
       if (!v.valid) setSession(uid, { activeKey: undefined, activeKeyId: undefined });
       await ctx.replyWithHTML(lines.join("\n"),
-        exhausted ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined);
+        needsRenewal ? Markup.inlineKeyboard([[Markup.button.callback("🔄 Gia hạn / Mua key mới", "buy_key")]]) : undefined);
       return;
     }
 
@@ -1137,7 +1178,7 @@ export function createBot(token: string): Telegraf {
       await ctx.telegram.deleteMessage(ctx.chat!.id, thinkMsg.message_id).catch(() => {});
 
       if (result.success) {
-        setSession(uid, { activeKey: key });
+        setSession(uid, { activeKey: key, pendingKey: undefined });
         const _lang = getLang(uid);
         const lines = [
           "✅ <b>Key kích hoạt thành công!</b>",
@@ -1156,6 +1197,18 @@ export function createBot(token: string): Telegraf {
           _lang === "en" ? "Paste <code>email|password</code> into chat to start checking!" : "Dán <code>email|password</code> vào chat để bắt đầu check ngay!",
         ];
         await ctx.replyWithHTML(lines.join("\n"), mainKeyboard(_lang));
+      } else if (result.reason === "already_active") {
+        setSession(uid, { pendingKey: key });
+        await ctx.replyWithHTML(
+          "🔑 <b>Bạn đang có key đang hoạt động!</b>\n\n" +
+          "Key hiện tại của bạn vẫn còn hiệu lực.\n" +
+          "Nếu muốn đổi sang key mới, nhấn <b>Đổi key</b>.\n\n" +
+          "⚠️ Key cũ sẽ ngừng được sử dụng sau khi đổi.",
+          Markup.inlineKeyboard([
+            [Markup.button.callback("🔄 Đổi sang key mới", "switch_key")],
+            [Markup.button.callback("❌ Giữ key hiện tại", "cancel_switch")],
+          ])
+        );
       } else {
         const reasons: Record<string, string> = {
           not_found: "❌ Key không tồn tại hoặc đã nhập sai.",
@@ -1178,6 +1231,56 @@ export function createBot(token: string): Telegraf {
     // ── Case 2: looks like credentials (has @) → auto check ────────────────
     if (!raw.includes("@")) return;
     await handleCredentialInput(ctx, raw);
+  });
+
+  // ── Switch key actions ───────────────────────────────────────────────────────
+  bot.action("switch_key", async (ctx) => {
+    await ctx.answerCbQuery();
+    const uid = ctx.from.id;
+    const session = getSession(uid);
+    const pendingKey = session.pendingKey;
+    if (!pendingKey) {
+      await ctx.replyWithHTML("❌ Không tìm thấy key chờ kích hoạt. Hãy gửi lại key cần đổi.");
+      return;
+    }
+    const thinkMsg = await ctx.reply("⏳ Đang đổi key...");
+    const result = await switchKey({
+      key: pendingKey,
+      telegramId: String(uid),
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+    });
+    await ctx.telegram.deleteMessage(ctx.chat!.id, thinkMsg.message_id).catch(() => {});
+    setSession(uid, { pendingKey: undefined });
+
+    if (result.success) {
+      setSession(uid, { activeKey: pendingKey });
+      await ctx.replyWithHTML(
+        "✅ <b>Đã đổi key thành công!</b>\n\n" +
+        `🔑 Key mới: <code>${escHtml(pendingKey.slice(0, 8))}***</code>\n` +
+        (result.expiresAt ? `⌛ Hết hạn: <b>${formatExpiry(result.expiresAt)}</b>\n` : "⌛ Không hết hạn\n") +
+        (result.maxTotalUses ? `🔢 Tổng lượt: <b>${result.maxTotalUses}</b>\n` : "") +
+        "\nDán <code>email|password</code> vào chat để bắt đầu check ngay!",
+        mainKeyboard(getLang(uid))
+      );
+    } else {
+      const reasons: Record<string, string> = {
+        not_found: "❌ Key không tồn tại hoặc đã nhập sai.",
+        revoked: "❌ Key đã bị thu hồi.",
+        expired: "⌛ Key đã hết hạn.",
+        max_uses_reached: "🚫 Key đã dùng hết lượt.",
+      };
+      await ctx.replyWithHTML(
+        reasons[result.reason ?? ""] ?? `❌ Đổi key thất bại: ${escHtml(result.reason ?? "unknown")}`,
+        Markup.inlineKeyboard([[Markup.button.callback("🛒 Mua Key", "buy_key")]])
+      );
+    }
+  });
+
+  bot.action("cancel_switch", async (ctx) => {
+    await ctx.answerCbQuery("Đã giữ key hiện tại ✅");
+    setSession(ctx.from.id, { pendingKey: undefined });
+    await ctx.replyWithHTML("✅ Đã giữ key hiện tại. Key cũ vẫn hoạt động bình thường.");
   });
 
   // ── Global error handler ─────────────────────────────────────────────────────

@@ -227,6 +227,16 @@ export async function activateKey(opts: {
   return post("/api/keys/activate", opts);
 }
 
+/** Force-switch to a new key, deactivating the user's current active key. */
+export async function switchKey(opts: {
+  key: string;
+  telegramId: string;
+  username?: string;
+  firstName?: string;
+}): Promise<ActivateResponse> {
+  return post("/api/keys/switch", opts);
+}
+
 export interface UseKeyResponse {
   allowed: boolean;
   keyId?: number;

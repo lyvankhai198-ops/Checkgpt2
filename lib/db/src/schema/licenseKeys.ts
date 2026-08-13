@@ -23,6 +23,8 @@ export const licenseKeysTable = pgTable("license_keys", {
   currentConcurrent: integer("current_concurrent").notNull().default(0),
   note: text("note"),
   plan: text("plan"),   // any plan slug — not limited to basic/pro
+  /** Stored at creation; expiresAt is calculated at activation so the clock starts when customer activates */
+  durationMinutes: integer("duration_minutes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [

@@ -106,6 +106,44 @@ router.post("/keys/activate", keyLimiter, async (req, res): Promise<void> => {
   });
 });
 
+// ─── Switch key (force-activate a new key even if user has one active) ────────
+
+router.post("/keys/switch", keyLimiter, async (req, res): Promise<void> => {
+  const { key: rawKey, telegramId, deviceInfo, username, firstName } = req.body ?? {};
+  if (!rawKey || !telegramId) {
+    res.status(400).json({ error: "key and telegramId required" });
+    return;
+  }
+
+  const user = await getOrCreateUser(String(telegramId), { username, firstName });
+
+  const result = await activateKey(String(rawKey), String(telegramId), {
+    deviceInfo,
+    ipAddress: req.ip,
+    userId: user.id,
+    forceSwitch: true,
+  });
+
+  if (!result.success) {
+    await logUsage({
+      telegramId: String(telegramId),
+      action: "switch_fail",
+      result: result.reason,
+      ipAddress: req.ip,
+    });
+    res.status(400).json({ success: false, reason: result.reason });
+    return;
+  }
+
+  res.json({
+    success: true,
+    expiresAt: result.key?.expiresAt,
+    maxConcurrent: result.key?.maxConcurrent,
+    dailyLimit: result.key?.dailyLimit,
+    maxTotalUses: result.key?.maxTotalUses,
+  });
+});
+
 // ─── Use / Release ────────────────────────────────────────────────────────────
 
 router.post("/keys/use", keyLimiter, async (req, res): Promise<void> => {
