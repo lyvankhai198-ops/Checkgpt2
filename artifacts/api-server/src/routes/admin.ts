@@ -252,10 +252,11 @@ router.patch("/admin/keys/:id", adminAuthMiddleware, async (req, res): Promise<v
 
 router.delete("/admin/keys/:id", adminAuthMiddleware, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
-  await revokeKey(id);
+  const [deleted] = await db.delete(licenseKeysTable).where(eq(licenseKeysTable.id, id)).returning({ id: licenseKeysTable.id });
+  if (!deleted) { res.status(404).json({ error: "Key not found" }); return; }
   await logAudit({
     adminId: req.admin!.adminId,
-    action: "revoke_key",
+    action: "delete_key",
     targetType: "key",
     targetId: String(id),
     ipAddress: req.ip,

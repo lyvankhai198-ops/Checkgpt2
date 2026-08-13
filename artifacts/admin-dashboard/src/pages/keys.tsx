@@ -5,6 +5,7 @@ import {
   getListKeysQueryKey,
   useCreateKeys,
   useUpdateKey,
+  useDeleteKey,
   useExportKeysCsv,
   getExportKeysCsvUrl,
   useGetInventory,
@@ -58,7 +59,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Download, MoreHorizontal, Plus, Search, ShieldOff, ShieldAlert,
   Key as KeyIcon, CheckCircle2, Copy, Package, Trash2, User, Activity,
-  Clock, ChevronRight,
+  Clock, ChevronRight, Lock, Unlock, Ban,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -91,12 +92,40 @@ function statusClass(s: string) {
 }
 
 // ── Key Detail Modal ──────────────────────────────────────────────────────────
-function KeyDetailModal({ keyId, onClose }: { keyId: number; onClose: () => void }) {
-  const { data, isLoading } = useGetKeyFullDetail(keyId, {
+function KeyDetailModal({ keyId, onClose, onActionDone }: { keyId: number; onClose: () => void; onActionDone: () => void }) {
+  const { data, isLoading, refetch } = useGetKeyFullDetail(keyId, {
     query: { queryKey: getGetKeyFullDetailQueryKey(keyId) },
   });
 
   const { toast } = useToast();
+  const updateMut = useUpdateKey();
+  const deleteMut = useDeleteKey();
+
+  const doAction = (action: "lock" | "unlock" | "revoke") => {
+    const labels = { lock: "Khóa", unlock: "Mở khóa", revoke: "Thu hồi" };
+    if (action === "revoke" && !window.confirm("Thu hồi key này? Người dùng sẽ không dùng được nữa.")) return;
+    updateMut.mutate({ id: keyId, data: { action } }, {
+      onSuccess: () => {
+        toast({ title: `✅ ${labels[action]} thành công` });
+        refetch();
+        onActionDone();
+      },
+      onError: () => toast({ title: "❌ Lỗi", variant: "destructive" }),
+    });
+  };
+
+  const doDelete = () => {
+    if (!window.confirm("Xoá vĩnh viễn key này khỏi hệ thống? Không thể hoàn tác.")) return;
+    deleteMut.mutate({ id: keyId }, {
+      onSuccess: () => {
+        toast({ title: "🗑️ Đã xoá key" });
+        onActionDone();
+        onClose();
+      },
+      onError: () => toast({ title: "❌ Lỗi xoá key", variant: "destructive" }),
+    });
+  };
+
   const copyToClipboard = (text: string) => {
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
@@ -316,6 +345,40 @@ function KeyDetailModal({ keyId, onClose }: { keyId: number; onClose: () => void
                 </div>
               )}
             </div>
+
+            {/* ── Action buttons ── */}
+            {(() => {
+              const s = key.status as string;
+              const busy = updateMut.isPending || deleteMut.isPending;
+              return (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-2 font-medium">Thao tác nhanh</p>
+                  <div className="flex flex-wrap gap-2">
+                    {s === "locked" ? (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => doAction("unlock")}
+                        className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10">
+                        <Unlock className="h-3.5 w-3.5 mr-1.5" /> Mở khóa
+                      </Button>
+                    ) : s !== "revoked" ? (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => doAction("lock")}
+                        className="border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
+                        <Lock className="h-3.5 w-3.5 mr-1.5" /> Khóa key
+                      </Button>
+                    ) : null}
+                    {s !== "revoked" && (
+                      <Button size="sm" variant="outline" disabled={busy} onClick={() => doAction("revoke")}
+                        className="border-orange-500/40 text-orange-400 hover:bg-orange-500/10">
+                        <Ban className="h-3.5 w-3.5 mr-1.5" /> Thu hồi
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" disabled={busy} onClick={doDelete}
+                      className="border-red-500/40 text-red-400 hover:bg-red-500/10 ml-auto">
+                      <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Xoá key
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
@@ -649,7 +712,14 @@ export default function Keys() {
       {/* ── Key detail modal ── */}
       <Dialog open={selectedKeyId !== null} onOpenChange={(o) => { if (!o) setSelectedKeyId(null); }}>
         {selectedKeyId !== null && (
-          <KeyDetailModal keyId={selectedKeyId} onClose={() => setSelectedKeyId(null)} />
+          <KeyDetailModal
+            keyId={selectedKeyId}
+            onClose={() => setSelectedKeyId(null)}
+            onActionDone={() => {
+              queryClient.invalidateQueries({ queryKey: getListKeysQueryKey() });
+              queryClient.invalidateQueries({ queryKey: getGetInventoryQueryKey() });
+            }}
+          />
         )}
       </Dialog>
 
