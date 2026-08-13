@@ -45,5 +45,13 @@ export interface SystemSettings {
   /** @nullable */
   sepayApiKey?: string | null;
   /** @nullable */
+  usdtWallet?: string | null;
+  /** @nullable */
+  usdtRateVnd?: number | null;
+  /** @nullable */
+  adminContact?: string | null;
+  /** @nullable */
+  proxyList?: string | null;
+  /** @nullable */
   updatedAt?: string | null;
 }

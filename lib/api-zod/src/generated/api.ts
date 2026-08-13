@@ -90,10 +90,15 @@ export const AdminMeResponse = zod.object({
 export const GetAdminStatsResponse = zod.object({
   "totalKeys": zod.number(),
   "activeKeys": zod.number(),
+  "inactiveKeys": zod.number(),
   "expiringSoon": zod.number(),
   "expiredKeys": zod.number(),
   "totalUsers": zod.number(),
   "todayUses": zod.number(),
+  "pendingOrders": zod.number(),
+  "deliveredOrders": zod.number(),
+  "totalRevenue": zod.number(),
+  "todayRevenue": zod.number(),
   "usageChart": zod.array(zod.object({
   "date": zod.string(),
   "uses": zod.number()
@@ -155,7 +160,7 @@ export const CreateKeysBody = zod.object({
   "allowedTelegramId": zod.string().nullish(),
   "lockToTelegram": zod.boolean().optional(),
   "note": zod.string().nullish(),
-  "plan": zod.union([zod.literal('basic'),zod.literal('pro'),zod.literal(null)]).nullish()
+  "plan": zod.string().nullish().describe('Plan slug (any value)')
 })
 
 export const CreateKeysResponse = zod.object({
@@ -260,6 +265,7 @@ export const ListUsersResponse = zod.object({
   "firstName": zod.string().nullish(),
   "trialCount": zod.number(),
   "currentKeyId": zod.number().nullish(),
+  "currentKeyDisplay": zod.string().nullish(),
   "lastUsedAt": zod.string().nullish(),
   "createdAt": zod.string()
 })),
@@ -272,20 +278,12 @@ export const ListUsersResponse = zod.object({
 /**
  * @summary Get key inventory counts grouped by plan
  */
-export const GetInventoryResponse = zod.object({
-  "basic": zod.object({
+export const GetInventoryResponse = zod.record(zod.string(), zod.object({
   "total": zod.number(),
   "available": zod.number(),
   "sold": zod.number(),
   "revoked": zod.number()
-}),
-  "pro": zod.object({
-  "total": zod.number(),
-  "available": zod.number(),
-  "sold": zod.number(),
-  "revoked": zod.number()
-})
-})
+})).describe('Keys are plan slugs (dynamic)')
 
 
 /**
@@ -427,7 +425,7 @@ export const GetPricesResponse = zod.object({
  * @summary Auto-create keys to reach the stock target for a plan
  */
 export const AutoStockBody = zod.object({
-  "plan": zod.enum(['basic', 'pro'])
+  "plan": zod.string().describe('Plan slug (any value)')
 })
 
 export const AutoStockResponse = zod.object({
@@ -468,6 +466,10 @@ export const GetSettingsResponse = zod.object({
   "bankHolder": zod.string().nullish(),
   "paymentEnabled": zod.number().nullish(),
   "sepayApiKey": zod.string().nullish(),
+  "usdtWallet": zod.string().nullish(),
+  "usdtRateVnd": zod.number().nullish(),
+  "adminContact": zod.string().nullish(),
+  "proxyList": zod.string().nullish(),
   "updatedAt": zod.string().nullish()
 }).optional()
 })
@@ -494,7 +496,11 @@ export const UpdateSettingsBody = zod.object({
   "bankAccount": zod.string().optional(),
   "bankHolder": zod.string().optional(),
   "paymentEnabled": zod.boolean().optional(),
-  "sepayApiKey": zod.string().optional()
+  "sepayApiKey": zod.string().optional(),
+  "usdtWallet": zod.string().optional(),
+  "usdtRateVnd": zod.number().optional(),
+  "adminContact": zod.string().optional(),
+  "proxyList": zod.string().optional()
 })
 
 export const UpdateSettingsResponse = zod.object({

@@ -5,7 +5,6 @@
  * ChatGPT Account Checker API
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateKeysInputPlan } from './createKeysInputPlan';
 
 export interface CreateKeysInput {
   count?: number;
@@ -22,6 +21,9 @@ export interface CreateKeysInput {
   lockToTelegram?: boolean;
   /** @nullable */
   note?: string | null;
-  /** @nullable */
-  plan?: CreateKeysInputPlan;
+  /**
+     * Plan slug (any value)
+     * @nullable
+     */
+  plan?: string | null;
 }

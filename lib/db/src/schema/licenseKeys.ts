@@ -1,5 +1,5 @@
 import {
-  pgTable, serial, text, integer, boolean, timestamp, date,
+  pgTable, serial, text, integer, boolean, timestamp, date, index,
 } from "drizzle-orm/pg-core";
 
 export const licenseKeysTable = pgTable("license_keys", {
@@ -25,7 +25,14 @@ export const licenseKeysTable = pgTable("license_keys", {
   plan: text("plan"),   // any plan slug — not limited to basic/pro
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("license_keys_status_idx").on(t.status),
+  index("license_keys_plan_idx").on(t.plan),
+  index("license_keys_status_plan_idx").on(t.status, t.plan),
+  index("license_keys_created_at_idx").on(t.createdAt),
+  index("license_keys_expires_at_idx").on(t.expiresAt),
+  index("license_keys_activated_telegram_id_idx").on(t.activatedTelegramId),
+]);
 
 export type LicenseKey = typeof licenseKeysTable.$inferSelect;
 export type InsertLicenseKey = typeof licenseKeysTable.$inferInsert;

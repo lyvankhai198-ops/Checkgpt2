@@ -10,9 +10,14 @@ import type { ChartPoint } from './chartPoint';
 export interface DashboardStats {
   totalKeys: number;
   activeKeys: number;
+  inactiveKeys: number;
   expiringSoon: number;
   expiredKeys: number;
   totalUsers: number;
   todayUses: number;
+  pendingOrders: number;
+  deliveredOrders: number;
+  totalRevenue: number;
+  todayRevenue: number;
   usageChart: ChartPoint[];
 }

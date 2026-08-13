@@ -545,14 +545,19 @@ components:
 
     DashboardStats:
       type: object
-      required: [totalKeys, activeKeys, expiringSoon, expiredKeys, totalUsers, todayUses, usageChart]
+      required: [totalKeys, activeKeys, inactiveKeys, expiringSoon, expiredKeys, totalUsers, todayUses, pendingOrders, deliveredOrders, totalRevenue, todayRevenue, usageChart]
       properties:
         totalKeys: { type: number }
         activeKeys: { type: number }
+        inactiveKeys: { type: number }
         expiringSoon: { type: number }
         expiredKeys: { type: number }
         totalUsers: { type: number }
         todayUses: { type: number }
+        pendingOrders: { type: number }
+        deliveredOrders: { type: number }
+        totalRevenue: { type: number }
+        todayRevenue: { type: number }
         usageChart:
           type: array
           items:
@@ -674,6 +679,7 @@ components:
         firstName: { type: ["string", "null"] }
         trialCount: { type: number }
         currentKeyId: { type: ["number", "null"] }
+        currentKeyDisplay: { type: ["string", "null"] }
         lastUsedAt: { type: ["string", "null"] }
         createdAt: { type: string }
 

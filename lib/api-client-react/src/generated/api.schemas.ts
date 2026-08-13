@@ -84,10 +84,15 @@ export interface ChartPoint {
 export interface DashboardStats {
   totalKeys: number;
   activeKeys: number;
+  inactiveKeys: number;
   expiringSoon: number;
   expiredKeys: number;
   totalUsers: number;
   todayUses: number;
+  pendingOrders: number;
+  deliveredOrders: number;
+  totalRevenue: number;
+  todayRevenue: number;
   usageChart: ChartPoint[];
 }
 
@@ -148,9 +153,6 @@ export interface KeyDetail {
   key: LicenseKey;
 }
 
-/** @nullable — any plan slug */
-export type CreateKeysInputPlan = string | null;
-
 export interface CreateKeysInput {
   count?: number;
   /** @nullable */
@@ -166,8 +168,11 @@ export interface CreateKeysInput {
   lockToTelegram?: boolean;
   /** @nullable */
   note?: string | null;
-  /** @nullable */
-  plan?: CreateKeysInputPlan;
+  /**
+     * Plan slug (any value)
+     * @nullable
+     */
+  plan?: string | null;
 }
 
 export interface NewKeyRecord {
@@ -205,8 +210,10 @@ export interface InventoryPlanStats {
   revoked: number;
 }
 
-/** Keys are plan slugs — dynamic, not limited to basic/pro */
-export type InventoryStats = Record<string, InventoryPlanStats>;
+/**
+ * Keys are plan slugs (dynamic)
+ */
+export interface InventoryStats {[key: string]: InventoryPlanStats}
 
 export interface TelegramUser {
   id: number;
@@ -313,6 +320,14 @@ export interface SystemSettings {
   /** @nullable */
   sepayApiKey?: string | null;
   /** @nullable */
+  usdtWallet?: string | null;
+  /** @nullable */
+  usdtRateVnd?: number | null;
+  /** @nullable */
+  adminContact?: string | null;
+  /** @nullable */
+  proxyList?: string | null;
+  /** @nullable */
   updatedAt?: string | null;
 }
 
@@ -341,6 +356,10 @@ export interface SettingsInput {
   bankHolder?: string;
   paymentEnabled?: boolean;
   sepayApiKey?: string;
+  usdtWallet?: string;
+  usdtRateVnd?: number;
+  adminContact?: string;
+  proxyList?: string;
 }
 
 export type CreateOrderInputPlan = typeof CreateOrderInputPlan[keyof typeof CreateOrderInputPlan];
@@ -409,11 +428,9 @@ export interface PricesResponse {
   proStockTarget?: number;
 }
 
-/** Any plan slug */
-export type AutoStockInputPlan = string;
-
 export interface AutoStockInput {
-  plan: AutoStockInputPlan;
+  /** Plan slug (any value) */
+  plan: string;
 }
 
 export type AutoStockResultKeysItem = {

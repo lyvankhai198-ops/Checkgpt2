@@ -58,8 +58,6 @@ async function deleteTelegramMessage(chatId: string, messageId: number): Promise
 }
 
 // ─── Create order (called by bot) ────────────────────────────────────────────
-// Accepts any plan slug. Price comes from plansTable (single source of truth).
-// Payment is considered "enabled" when bank account is configured in settings.
 
 router.post("/payment/orders", async (req, res): Promise<void> => {
   const { telegramId, username, plan } = req.body ?? {};
@@ -112,29 +110,26 @@ router.post("/payment/orders", async (req, res): Promise<void> => {
     plan: String(plan),
     amount,
     orderCode,
+    status: "pending",
     expiresAt,
-  } as InsertOrder).returning();
-
-  // VietQR URL
-  const fmtAmount = amount.toLocaleString("vi-VN");
-  const qrUrl = `https://img.vietqr.io/image/${bankBin}-${bankAccount}-compact.png` +
-    `?amount=${amount}&addInfo=${orderCode}&accountName=${encodeURIComponent(bankHolder)}`;
+  } satisfies InsertOrder).returning();
 
   res.json({
     orderId: order.id,
     orderCode,
     amount,
-    amountFormatted: `${fmtAmount}đ`,
-    expiresAt: expiresAt.toISOString(),
-    bank: { name: bankName, account: bankAccount, holder: bankHolder },
-    qrUrl,
+    expiresAt,
+    bankName,
+    bankBin,
+    bankAccount,
+    bankHolder,
   });
 });
 
-// ─── Save QR message_id (called by bot after sending QR photo) ───────────────
+// ─── Record QR message ID ─────────────────────────────────────────────────────
 
 router.post("/payment/orders/:id/qr-message", async (req, res): Promise<void> => {
-  const orderId = Number(req.params["id"]);
+  const orderId = Number(req.params.id);
   const { messageId } = req.body ?? {};
   if (!orderId || !messageId) {
     res.status(400).json({ error: "orderId and messageId required" });
@@ -147,6 +142,13 @@ router.post("/payment/orders/:id/qr-message", async (req, res): Promise<void> =>
 });
 
 // ─── SePay webhook ───────────────────────────────────────────────────────────
+//
+// IDEMPOTENCY GUARANTEE:
+// We use an atomic conditional UPDATE (WHERE status = 'pending') as the first
+// mutating step. Only one concurrent webhook call can transition an order from
+// 'pending' → 'paid'. If the UPDATE returns no rows the order was already
+// processed and we return early. Key allocation happens inside a DB transaction
+// so the same key cannot be assigned twice.
 
 router.post("/payment/webhook", async (req, res): Promise<void> => {
   // Read API key from settings (falls back to env var)
@@ -183,25 +185,31 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
   }
 
   const orderCode = match[0].toUpperCase();
-  const [order] = await db.select().from(ordersTable)
+
+  // Look up order first (read-only, no lock needed yet)
+  const [existingOrder] = await db.select().from(ordersTable)
     .where(eq(ordersTable.orderCode, orderCode)).limit(1);
 
-  if (!order) {
+  if (!existingOrder) {
     logger.info({ orderCode }, "SePay webhook: order not found");
     res.json({ success: false, error: "order_not_found" });
     return;
   }
 
-  if (order.status !== "pending") {
-    logger.info({ orderCode, status: order.status }, "SePay webhook: order already processed");
+  // Fast-path: already processed (no mutation needed)
+  if (existingOrder.status !== "pending") {
+    logger.info({ orderCode, status: existingOrder.status }, "SePay webhook: order already processed");
     res.json({ success: true, note: "already_processed" });
     return;
   }
 
   // Check if expired
-  if (order.expiresAt && order.expiresAt < new Date()) {
-    await db.update(ordersTable).set({ status: "expired" }).where(eq(ordersTable.id, order.id));
-    await sendTelegram(order.telegramId,
+  if (existingOrder.expiresAt && existingOrder.expiresAt < new Date()) {
+    // Atomic: only update if still pending (avoids race with concurrent expiry)
+    await db.update(ordersTable)
+      .set({ status: "expired" })
+      .where(and(eq(ordersTable.id, existingOrder.id), eq(ordersTable.status, "pending")));
+    await sendTelegram(existingOrder.telegramId,
       `⏰ <b>Đơn hàng ${orderCode} đã hết hạn.</b>\n\nVui lòng tạo đơn mới để tiếp tục.`
     );
     res.json({ success: false, error: "order_expired" });
@@ -209,11 +217,11 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
   }
 
   // Check amount (allow ±1000 tolerance for rounding)
-  if (Math.abs(Number(transferAmount) - order.amount) > 1000) {
-    logger.warn({ received: transferAmount, expected: order.amount }, "SePay webhook: amount mismatch");
-    await sendTelegram(order.telegramId,
+  if (Math.abs(Number(transferAmount) - existingOrder.amount) > 1000) {
+    logger.warn({ received: transferAmount, expected: existingOrder.amount }, "SePay webhook: amount mismatch");
+    await sendTelegram(existingOrder.telegramId,
       `⚠️ <b>Thanh toán không khớp số tiền.</b>\n\n` +
-      `Đơn <code>${orderCode}</code> yêu cầu <b>${order.amount.toLocaleString("vi-VN")}đ</b> ` +
+      `Đơn <code>${orderCode}</code> yêu cầu <b>${existingOrder.amount.toLocaleString("vi-VN")}đ</b> ` +
       `nhưng nhận được <b>${Number(transferAmount).toLocaleString("vi-VN")}đ</b>.\n\n` +
       `Liên hệ admin để được hỗ trợ.`
     );
@@ -221,64 +229,96 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
     return;
   }
 
-  // Mark order as paid
-  const qrMessageId = order.qrMessageId;
-  await db.update(ordersTable)
+  // ── ATOMIC TRANSITION: pending → paid ──────────────────────────────────────
+  // Uses conditional UPDATE so concurrent webhooks cannot both succeed.
+  // If this returns 0 rows, another request already handled this order.
+  const [paidOrder] = await db.update(ordersTable)
     .set({ status: "paid", paidAt: new Date() })
-    .where(eq(ordersTable.id, order.id));
+    .where(and(eq(ordersTable.orderCode, orderCode), eq(ordersTable.status, "pending")))
+    .returning();
 
-  // Pick an available key for this plan
-  const [availableKey] = await db.select()
-    .from(licenseKeysTable)
-    .where(and(
-      eq(licenseKeysTable.plan, order.plan),
-      eq(licenseKeysTable.status, "inactive"),
-    ))
-    .limit(1);
+  if (!paidOrder) {
+    // Another concurrent webhook already processed this order
+    logger.info({ orderCode }, "SePay webhook: concurrent request already processed order");
+    res.json({ success: true, note: "already_processed" });
+    return;
+  }
 
-  // Get plan display info from plansTable
+  // ── ALLOCATE KEY INSIDE TRANSACTION ────────────────────────────────────────
+  // Transaction ensures key status flip and order update are atomic.
+  const order = paidOrder;
+  const qrMessageId = order.qrMessageId;
+
+  // Get plan display info
   const [planRow] = await db.select({ name: plansTable.name, emoji: plansTable.emoji })
     .from(plansTable)
     .where(eq(plansTable.slug, order.plan))
     .limit(1);
   const planLabel = planRow ? `${planRow.emoji} ${planRow.name}` : order.plan;
 
-  if (!availableKey) {
-    logger.error({ plan: order.plan, orderCode }, "SePay webhook: no available key for plan");
+  try {
+    const deliveredKey = await db.transaction(async (tx) => {
+      // Lock and pick an available key (SKIP LOCKED prevents concurrent allocation)
+      const [availableKey] = await tx
+        .select()
+        .from(licenseKeysTable)
+        .where(and(
+          eq(licenseKeysTable.plan, order.plan),
+          eq(licenseKeysTable.status, "inactive"),
+        ))
+        .limit(1)
+        .for("update", { skipLocked: true });
+
+      if (!availableKey) return null;
+
+      // Mark key as active
+      await tx.update(licenseKeysTable)
+        .set({ status: "active", updatedAt: new Date() })
+        .where(eq(licenseKeysTable.id, availableKey.id));
+
+      // Mark order delivered
+      await tx.update(ordersTable).set({
+        status: "delivered",
+        keyId: availableKey.id,
+        deliveredAt: new Date(),
+      }).where(eq(ordersTable.id, order.id));
+
+      return availableKey;
+    });
+
+    if (!deliveredKey) {
+      logger.error({ plan: order.plan, orderCode }, "SePay webhook: no available key for plan");
+      await sendTelegram(order.telegramId,
+        `✅ <b>Thanh toán thành công!</b>\n\n` +
+        `⚠️ Hệ thống tạm thời hết key gói ${planLabel}.\n` +
+        `Admin sẽ giao key cho bạn sớm nhất. Xin lỗi vì sự bất tiện này.`
+      );
+      await db.update(ordersTable).set({ status: "failed" }).where(eq(ordersTable.id, order.id));
+      res.json({ success: false, error: "no_key_available" });
+      return;
+    }
+
+    // Delete QR code message (best-effort)
+    if (qrMessageId) {
+      await deleteTelegramMessage(order.telegramId, qrMessageId);
+    }
+
+    // Deliver key to user via Telegram
     await sendTelegram(order.telegramId,
-      `✅ <b>Thanh toán thành công!</b>\n\n` +
-      `⚠️ Hệ thống tạm thời hết key gói ${planLabel}.\n` +
-      `Admin sẽ giao key cho bạn sớm nhất. Xin lỗi vì sự bất tiện này.`
+      `🎉 <b>Thanh toán thành công! Key của bạn đây:</b>\n\n` +
+      `<code>${deliveredKey.keyDisplay}</code>\n\n` +
+      `Gói: <b>${planLabel}</b>\n` +
+      `Để kích hoạt, dán key vào chat hoặc gõ:\n` +
+      `<code>/activate ${deliveredKey.keyDisplay}</code>\n\n` +
+      `<i>Key chỉ hiển thị một lần — hãy lưu lại!</i>`
     );
-    await db.update(ordersTable).set({ status: "failed" }).where(eq(ordersTable.id, order.id));
-    res.json({ success: false, error: "no_key_available" });
-    return;
+
+    logger.info({ orderCode, keyId: deliveredKey.id, telegramId: order.telegramId }, "Key delivered");
+    res.json({ success: true, delivered: true });
+  } catch (err) {
+    logger.error({ err, orderCode }, "SePay webhook: transaction failed");
+    res.status(500).json({ success: false, error: "internal_error" });
   }
-
-  // Assign key and mark order delivered
-  await db.update(ordersTable).set({
-    status: "delivered",
-    keyId: availableKey.id,
-    deliveredAt: new Date(),
-  }).where(eq(ordersTable.id, order.id));
-
-  // Delete QR code message (best-effort)
-  if (qrMessageId) {
-    await deleteTelegramMessage(order.telegramId, qrMessageId);
-  }
-
-  // Deliver key to user via Telegram
-  await sendTelegram(order.telegramId,
-    `🎉 <b>Thanh toán thành công! Key của bạn đây:</b>\n\n` +
-    `<code>${availableKey.keyDisplay}</code>\n\n` +
-    `Gói: <b>${planLabel}</b>\n` +
-    `Để kích hoạt, dán key vào chat hoặc gõ:\n` +
-    `<code>/activate ${availableKey.keyDisplay}</code>\n\n` +
-    `<i>Key chỉ hiển thị một lần — hãy lưu lại!</i>`
-  );
-
-  logger.info({ orderCode, keyId: availableKey.id, telegramId: order.telegramId }, "Key delivered");
-  res.json({ success: true, delivered: true });
 });
 
 export default router;

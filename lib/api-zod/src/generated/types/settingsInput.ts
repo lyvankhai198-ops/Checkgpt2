@@ -27,4 +27,8 @@ export interface SettingsInput {
   bankHolder?: string;
   paymentEnabled?: boolean;
   sepayApiKey?: string;
+  usdtWallet?: string;
+  usdtRateVnd?: number;
+  adminContact?: string;
+  proxyList?: string;
 }

@@ -101,9 +101,21 @@ router.post("/check", async (req, res): Promise<void> => {
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
+  let aborted = false;
+
   const send = (data: unknown) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    if (aborted) return;
+    try {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      // client disconnected mid-write — ignore
+    }
   };
+
+  // Stop processing when client disconnects (saves CPU and network resources)
+  req.on("close", () => {
+    aborted = true;
+  });
 
   send({ type: "start", total: lines.length });
 
@@ -115,7 +127,13 @@ router.post("/check", async (req, res): Promise<void> => {
 
   await new Promise<void>((resolve) => {
     const tryNext = () => {
-      while (running < sem && idx < lines.length) {
+      // Stop scheduling new work if client disconnected
+      if (aborted) {
+        if (running === 0) resolve();
+        return;
+      }
+
+      while (running < sem && idx < lines.length && !aborted) {
         const i = idx++;
         const line = lines[i];
         const proxyUrl = pickProxy();
@@ -130,7 +148,9 @@ router.post("/check", async (req, res): Promise<void> => {
             data: { ...result, index: i, completed },
           });
           running--;
-          if (completed === lines.length) {
+          if (aborted && running === 0) {
+            resolve();
+          } else if (completed === lines.length) {
             resolve();
           } else {
             tryNext();
@@ -138,7 +158,8 @@ router.post("/check", async (req, res): Promise<void> => {
         })().catch(() => {
           completed++;
           running--;
-          if (completed === lines.length) resolve();
+          if (aborted && running === 0) resolve();
+          else if (completed === lines.length) resolve();
           else tryNext();
         });
       }
@@ -147,7 +168,9 @@ router.post("/check", async (req, res): Promise<void> => {
     tryNext();
   });
 
-  send({ type: "done", total: lines.length });
+  if (!aborted) {
+    send({ type: "done", total: lines.length });
+  }
   res.end();
 });
 

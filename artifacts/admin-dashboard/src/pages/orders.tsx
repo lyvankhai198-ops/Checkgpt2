@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useListOrders, getListOrdersQueryKey } from "@workspace/api-client-react";
+import { useListOrders, getListOrdersQueryKey, useGetAdminStats, getGetAdminStatsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,10 @@ export default function Orders() {
   const [limit] = useState(20);
   const [status, setStatus] = useState("all");
 
+  const { data: statsData } = useGetAdminStats({
+    query: { queryKey: getGetAdminStatsQueryKey() },
+  });
+
   const { data, isLoading } = useListOrders(
     { page, limit, status: status !== "all" ? status : undefined },
     { query: { queryKey: getListOrdersQueryKey({ page, limit, status: status !== "all" ? status : undefined }), refetchInterval: 15_000 } }
@@ -55,18 +59,18 @@ export default function Orders() {
         <p className="text-muted-foreground mt-1">Lịch sử thanh toán và giao key tự động.</p>
       </div>
 
-      {/* Summary cards */}
+      {/* Summary cards with real counts */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Chờ TT", key: "pending", cls: "text-amber-400" },
-          { label: "Đã giao", key: "delivered", cls: "text-emerald-400" },
-          { label: "Thất bại", key: "failed", cls: "text-red-400" },
-          { label: "Tổng", key: "all", cls: "text-foreground" },
-        ].map(({ label, key, cls }) => (
-          <Card key={key} className="cursor-pointer hover:border-primary/40 transition-colors" onClick={() => { setStatus(key); setPage(1); }}>
+          { label: "Chờ TT", key: "pending", cls: "text-amber-400", count: statsData?.pendingOrders ?? "—" },
+          { label: "Đã giao", key: "delivered", cls: "text-emerald-400", count: statsData?.deliveredOrders ?? "—" },
+          { label: "Thất bại", key: "failed", cls: "text-red-400", count: "—" },
+          { label: "Tổng", key: "all", cls: "text-foreground", count: data?.total ?? "—" },
+        ].map(({ label, key, cls, count }) => (
+          <Card key={key} className={`cursor-pointer hover:border-primary/40 transition-colors ${status === key ? "border-primary/60" : ""}`} onClick={() => { setStatus(key); setPage(1); }}>
             <CardContent className="p-4 text-center">
-              <div className={`text-2xl font-bold ${cls}`}>
-                {key === "all" ? (data?.total ?? "—") : "—"}
+              <div className={`text-2xl font-bold font-mono ${cls}`}>
+                {typeof count === "number" ? count.toLocaleString() : count}
               </div>
               <div className="text-xs text-muted-foreground mt-1">{label}</div>
             </CardContent>

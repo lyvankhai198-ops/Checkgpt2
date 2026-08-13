@@ -7,7 +7,7 @@
  */
 import type { InventoryPlanStats } from './inventoryPlanStats';
 
-export interface InventoryStats {
-  basic: InventoryPlanStats;
-  pro: InventoryPlanStats;
-}
+/**
+ * Keys are plan slugs (dynamic)
+ */
+export interface InventoryStats {[key: string]: InventoryPlanStats}

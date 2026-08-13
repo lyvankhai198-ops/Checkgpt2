@@ -9,7 +9,7 @@ import { eq, and, sql, lt, gte, lte } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   licenseKeysTable, keyActivationsTable, usageLogsTable, auditLogsTable,
-  usersTable, settingsTable, plansTable,
+  usersTable, settingsTable, plansTable, ordersTable,
   type LicenseKey, type InsertLicenseKey,
 } from "@workspace/db";
 import { logger } from "./logger.js";
@@ -558,35 +558,63 @@ export async function getDashboardStats() {
   const now = new Date();
   const in7days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const todayStr = now.toISOString().slice(0, 10);
-
-  const [totalKeys] = await db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable);
-  const [activeKeys] = await db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable).where(eq(licenseKeysTable.status, "active"));
-  const [expiringSoon] = await db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable)
-    .where(and(eq(licenseKeysTable.status, "active"), lt(licenseKeysTable.expiresAt, in7days)));
-  const [expiredKeys] = await db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable).where(eq(licenseKeysTable.status, "expired"));
-  const [totalUsers] = await db.select({ count: sql<number>`count(*)` }).from(usersTable);
-  const [todayUses] = await db.select({ count: sql<number>`count(*)` }).from(usageLogsTable)
-    .where(gte(usageLogsTable.createdAt, new Date(todayStr)));
-
-  // Usage for last 7 days
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const usageChart = await db
-    .select({
-      date: sql<string>`DATE(${usageLogsTable.createdAt})`,
-      count: sql<number>`count(*)`,
-    })
-    .from(usageLogsTable)
-    .where(gte(usageLogsTable.createdAt, sevenDaysAgo))
-    .groupBy(sql`DATE(${usageLogsTable.createdAt})`)
-    .orderBy(sql`DATE(${usageLogsTable.createdAt})`);
+  const todayStart = new Date(todayStr);
+
+  // Run all independent queries in parallel for performance
+  const [
+    [totalKeysRow],
+    [activeKeysRow],
+    [inactiveKeysRow],
+    [expiringSoonRow],
+    [expiredKeysRow],
+    [totalUsersRow],
+    [todayUsesRow],
+    [pendingOrdersRow],
+    [deliveredOrdersRow],
+    [totalRevenueRow],
+    [todayRevenueRow],
+    usageChart,
+  ] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable),
+    db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable).where(eq(licenseKeysTable.status, "active")),
+    db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable).where(eq(licenseKeysTable.status, "inactive")),
+    db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable)
+      .where(and(eq(licenseKeysTable.status, "active"), lt(licenseKeysTable.expiresAt, in7days))),
+    db.select({ count: sql<number>`count(*)` }).from(licenseKeysTable).where(eq(licenseKeysTable.status, "expired")),
+    db.select({ count: sql<number>`count(*)` }).from(usersTable),
+    db.select({ count: sql<number>`count(*)` }).from(usageLogsTable)
+      .where(gte(usageLogsTable.createdAt, todayStart)),
+    db.select({ count: sql<number>`count(*)` }).from(ordersTable)
+      .where(eq(ordersTable.status, "pending")),
+    db.select({ count: sql<number>`count(*)` }).from(ordersTable)
+      .where(eq(ordersTable.status, "delivered")),
+    db.select({ total: sql<number>`coalesce(sum(amount), 0)` }).from(ordersTable)
+      .where(eq(ordersTable.status, "delivered")),
+    db.select({ total: sql<number>`coalesce(sum(amount), 0)` }).from(ordersTable)
+      .where(and(eq(ordersTable.status, "delivered"), gte(ordersTable.deliveredAt, todayStart))),
+    db.select({
+        date: sql<string>`DATE(${usageLogsTable.createdAt})`,
+        uses: sql<number>`count(*)`,
+      })
+      .from(usageLogsTable)
+      .where(gte(usageLogsTable.createdAt, sevenDaysAgo))
+      .groupBy(sql`DATE(${usageLogsTable.createdAt})`)
+      .orderBy(sql`DATE(${usageLogsTable.createdAt})`),
+  ]);
 
   return {
-    totalKeys: Number(totalKeys.count),
-    activeKeys: Number(activeKeys.count),
-    expiringSoon: Number(expiringSoon.count),
-    expiredKeys: Number(expiredKeys.count),
-    totalUsers: Number(totalUsers.count),
-    todayUses: Number(todayUses.count),
+    totalKeys: Number(totalKeysRow?.count ?? 0),
+    activeKeys: Number(activeKeysRow?.count ?? 0),
+    inactiveKeys: Number(inactiveKeysRow?.count ?? 0),
+    expiringSoon: Number(expiringSoonRow?.count ?? 0),
+    expiredKeys: Number(expiredKeysRow?.count ?? 0),
+    totalUsers: Number(totalUsersRow?.count ?? 0),
+    todayUses: Number(todayUsesRow?.count ?? 0),
+    pendingOrders: Number(pendingOrdersRow?.count ?? 0),
+    deliveredOrders: Number(deliveredOrdersRow?.count ?? 0),
+    totalRevenue: Number(totalRevenueRow?.total ?? 0),
+    todayRevenue: Number(todayRevenueRow?.total ?? 0),
     usageChart,
   };
 }

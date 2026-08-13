@@ -5,8 +5,8 @@
  * ChatGPT Account Checker API
  * OpenAPI spec version: 0.1.0
  */
-import type { AutoStockInputPlan } from './autoStockInputPlan';
 
 export interface AutoStockInput {
-  plan: AutoStockInputPlan;
+  /** Plan slug (any value) */
+  plan: string;
 }

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, index } from "drizzle-orm/pg-core";
 
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
@@ -16,7 +16,13 @@ export const ordersTable = pgTable("orders", {
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }), // order expires if not paid in time
   qrMessageId: integer("qr_message_id"),                      // Telegram message_id of QR photo (for deletion)
-});
+}, (t) => [
+  index("orders_status_idx").on(t.status),
+  index("orders_telegram_id_idx").on(t.telegramId),
+  index("orders_created_at_idx").on(t.createdAt),
+  index("orders_delivered_at_idx").on(t.deliveredAt),
+  index("orders_plan_idx").on(t.plan),
+]);
 
 export type Order = typeof ordersTable.$inferSelect;
 export type InsertOrder = typeof ordersTable.$inferInsert;
