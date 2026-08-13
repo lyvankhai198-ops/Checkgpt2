@@ -697,6 +697,98 @@ export default function Keys() {
       {/* ── Keys table ── */}
       <Card>
         <CardContent className="p-0">
+          {/* Quick-filter tabs */}
+          <div className="flex gap-1.5 p-4 pb-0 overflow-x-auto">
+            {([
+              { value: "all",      label: "Tất cả" },
+              { value: "active",   label: "🟢 Đã kích hoạt" },
+              { value: "inactive", label: "🔵 Sẵn sàng" },
+              { value: "locked",   label: "🟡 Đã khóa" },
+              { value: "expired",  label: "⚫ Hết hạn" },
+              { value: "revoked",  label: "🔴 Thu hồi" },
+            ] as const).map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setStatus(tab.value)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                  status === tab.value
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Activated-key cards — shown only when tab = "active" */}
+          {status === "active" && (
+            <div className="p-4 space-y-3 border-b border-border">
+              <p className="text-xs text-muted-foreground">
+                {filteredKeys.filter(k => k.activatedUser).length} / {filteredKeys.length} key có thông tin người dùng
+              </p>
+              {isLoading ? (
+                <div className="text-sm text-muted-foreground text-center py-4">Đang tải...</div>
+              ) : filteredKeys.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">Không có key đang hoạt động</div>
+              ) : (
+                <div className="grid gap-2">
+                  {filteredKeys.map((key) => (
+                    <div
+                      key={key.id}
+                      onClick={() => setSelectedKeyId(key.id)}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 cursor-pointer transition-colors"
+                    >
+                      {/* User avatar */}
+                      <div className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${
+                        key.activatedUser
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-muted text-muted-foreground"
+                      }`}>
+                        {key.activatedUser
+                          ? (key.activatedUser.firstName ?? key.activatedUser.username ?? key.activatedUser.telegramId ?? "?").charAt(0).toUpperCase()
+                          : "?"}
+                      </div>
+
+                      {/* User + key info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium">
+                            {key.activatedUser
+                              ? (key.activatedUser.username ? `@${key.activatedUser.username}` : key.activatedUser.firstName ?? key.activatedUser.telegramId)
+                              : <span className="text-muted-foreground italic">Chưa rõ người dùng</span>
+                            }
+                          </span>
+                          {key.plan && (
+                            <Badge variant="outline" className={`text-xs ${key.plan === "pro" ? "border-purple-500/40 text-purple-400" : "border-emerald-500/40 text-emerald-400"}`}>
+                              {key.plan === "pro" ? "Pro" : "Basic"}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          <span className="font-mono text-xs text-muted-foreground truncate">
+                            {key.keyDisplay.slice(0, 16)}…
+                          </span>
+                          {key.activatedUser && (
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              ID: {key.activatedUser.telegramId}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Usage */}
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-bold">{key.totalUses}</div>
+                        <div className="text-xs text-muted-foreground">lượt</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Filters */}
           <div className="flex flex-col sm:flex-row p-4 gap-4 border-b border-border">
             <div className="relative w-full sm:max-w-xs">
