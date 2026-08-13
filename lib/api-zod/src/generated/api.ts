@@ -119,7 +119,8 @@ export const ListKeysQueryParams = zod.object({
   "page": zod.coerce.number().optional(),
   "limit": zod.coerce.number().optional(),
   "status": zod.coerce.string().optional(),
-  "search": zod.coerce.string().optional()
+  "search": zod.coerce.string().optional(),
+  "plan": zod.coerce.string().optional()
 })
 
 export const ListKeysResponse = zod.object({

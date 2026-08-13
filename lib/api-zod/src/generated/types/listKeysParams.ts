@@ -11,4 +11,5 @@ page?: number;
 limit?: number;
 status?: string;
 search?: string;
+plan?: string;
 };

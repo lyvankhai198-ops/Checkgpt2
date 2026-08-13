@@ -162,6 +162,9 @@ paths:
         - name: search
           in: query
           schema: { type: string }
+        - name: plan
+          in: query
+          schema: { type: string }
       responses:
         "200":
           description: Keys list

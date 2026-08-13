@@ -339,9 +339,10 @@ export default function Keys() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null);
 
+  const planParam = planFilter !== "all" ? planFilter : undefined;
   const { data, isLoading } = useListKeys(
-    { page, limit, search: search || undefined, status: status !== "all" ? status : undefined },
-    { query: { queryKey: getListKeysQueryKey({ page, limit, search: search || undefined, status: status !== "all" ? status : undefined }) } }
+    { page, limit, search: search || undefined, status: status !== "all" ? status : undefined, plan: planParam },
+    { query: { queryKey: getListKeysQueryKey({ page, limit, search: search || undefined, status: status !== "all" ? status : undefined, plan: planParam }) } }
   );
 
   const { data: inventory } = useGetInventory({
@@ -449,9 +450,7 @@ export default function Keys() {
     document.execCommand("copy"); document.body.removeChild(el);
   };
 
-  const filteredKeys = data?.keys.filter(
-    (k) => planFilter === "all" || (planFilter === "custom" ? !k.plan : k.plan === planFilter)
-  ) ?? [];
+  const filteredKeys = data?.keys ?? [];
 
   return (
     <div className="space-y-6">

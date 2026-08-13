@@ -94,10 +94,13 @@ router.get("/admin/keys", adminAuthMiddleware, async (req, res): Promise<void> =
   const offset = (page - 1) * limit;
   const status = req.query.status as string | undefined;
   const search = req.query.search as string | undefined;
+  const plan = req.query.plan as string | undefined;
 
   const conditions = [];
   if (status) conditions.push(eq(licenseKeysTable.status, status as LicenseKey["status"]));
   if (search) conditions.push(ilike(licenseKeysTable.keyDisplay, `%${search}%`));
+  if (plan === "custom") conditions.push(sql`${licenseKeysTable.plan} IS NULL`);
+  else if (plan) conditions.push(eq(licenseKeysTable.plan, plan));
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
