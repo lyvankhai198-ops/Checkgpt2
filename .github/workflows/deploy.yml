@@ -20,6 +20,7 @@ jobs:
             cd /opt/checkgpt
 
             echo "📥 Pulling latest code..."
+            git checkout -- .
             git pull origin main
 
             echo "📦 Installing dependencies..."
