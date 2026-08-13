@@ -16,7 +16,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
-            set -eo pipefail
+            set -e
             cd /opt/checkgpt
 
             echo "📥 Pulling latest code..."
@@ -42,7 +42,9 @@ jobs:
             cp -r artifacts/admin-dashboard/dist/public/* /var/www/checkgpt-admin/
 
             echo "🗄️ DB migrations..."
-            export $(grep -v '^#' .env | xargs)
+            set +e
+            export $(grep -v '^#' .env | xargs -d '\n') 2>/dev/null || true
+            set -e
             pnpm --filter @workspace/db run push-force
 
             echo "🔧 Updating Nginx proxy headers..."
