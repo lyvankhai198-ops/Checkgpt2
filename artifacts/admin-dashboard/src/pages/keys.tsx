@@ -697,28 +697,55 @@ export default function Keys() {
       {/* ── Keys table ── */}
       <Card>
         <CardContent className="p-0">
-          {/* Quick-filter tabs */}
-          <div className="flex gap-1.5 p-4 pb-0 overflow-x-auto">
-            {([
-              { value: "all",      label: "Tất cả" },
-              { value: "active",   label: "🟢 Đã kích hoạt" },
-              { value: "inactive", label: "🔵 Sẵn sàng" },
-              { value: "locked",   label: "🟡 Đã khóa" },
-              { value: "expired",  label: "⚫ Hết hạn" },
-              { value: "revoked",  label: "🔴 Thu hồi" },
-            ] as const).map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setStatus(tab.value)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                  status === tab.value
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Quick-filter tabs + search/plan row */}
+          <div className="p-4 pb-3 space-y-3">
+            {/* Status tabs */}
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {([
+                { value: "all",      label: "Tất cả" },
+                { value: "active",   label: "🟢 Kích hoạt" },
+                { value: "inactive", label: "🔵 Sẵn sàng" },
+                { value: "locked",   label: "🟡 Đã khóa" },
+                { value: "expired",  label: "⚫ Hết hạn" },
+                { value: "revoked",  label: "🔴 Thu hồi" },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setStatus(tab.value)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                    status === tab.value
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:border-foreground/40 hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search + plan filter in one row */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Tìm kiếm key..."
+                  className="pl-9 bg-background h-9 text-sm"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <Select value={planFilter} onValueChange={setPlanFilter}>
+                <SelectTrigger className="w-[130px] bg-background h-9 text-sm shrink-0">
+                  <SelectValue placeholder="Tất cả gói" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả gói</SelectItem>
+                  <SelectItem value="basic">🟢 Basic</SelectItem>
+                  <SelectItem value="pro">🟣 Pro</SelectItem>
+                  <SelectItem value="custom">Tuỳ chỉnh</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Activated-key cards — shown only when tab = "active" */}
@@ -788,43 +815,6 @@ export default function Keys() {
               )}
             </div>
           )}
-
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row p-4 gap-4 border-b border-border">
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Tìm kiếm key..."
-                className="pl-9 bg-background"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-full sm:w-[180px] bg-background">
-                <SelectValue placeholder="Lọc theo trạng thái" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả</SelectItem>
-                <SelectItem value="inactive">🔵 Sẵn sàng</SelectItem>
-                <SelectItem value="active">🟢 Hoạt động</SelectItem>
-                <SelectItem value="locked">🟡 Đã khóa</SelectItem>
-                <SelectItem value="expired">⚫ Hết hạn</SelectItem>
-                <SelectItem value="revoked">🔴 Đã thu hồi</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={planFilter} onValueChange={setPlanFilter}>
-              <SelectTrigger className="w-full sm:w-[160px] bg-background">
-                <SelectValue placeholder="Lọc theo gói" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả gói</SelectItem>
-                <SelectItem value="basic">🟢 Basic</SelectItem>
-                <SelectItem value="pro">🟣 Pro</SelectItem>
-                <SelectItem value="custom">Tuỳ chỉnh</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="relative w-full overflow-auto">
             <Table>
